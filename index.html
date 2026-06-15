@@ -1,0 +1,2119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0a1628" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Team Stats" />
+  <title>Team Stat Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a1628; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: #0a1628; }
+    ::-webkit-scrollbar-thumb { background: #4db8ff; border-radius: 2px; }
+    .nav-btn { background: none; border: none; cursor: pointer; font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: 2px; padding: 10px 20px; transition: all 0.2s; }
+    .game-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(77,184,255,0.15); border-radius: 8px; padding: 14px 18px; cursor: pointer; transition: all 0.2s; margin-bottom: 8px; }
+    .game-card:hover { background: rgba(77,184,255,0.1); border-color: rgba(77,184,255,0.4); }
+    .game-card.played { border-left: 3px solid #4db8ff; }
+    .stat-btn { width: 30px; height: 30px; border-radius: 50%; border: 1px solid rgba(77,184,255,0.4); background: rgba(77,184,255,0.1); color: #4db8ff; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
+    .stat-btn:hover { background: rgba(77,184,255,0.3); }
+    .score-input { background: rgba(255,255,255,0.08); border: 1px solid rgba(77,184,255,0.3); border-radius: 6px; color: #fff; font-family: 'Bebas Neue'; font-size: 28px; width: 60px; text-align: center; padding: 6px; outline: none; -moz-appearance: textfield; }
+    .score-input:focus { border-color: #4db8ff; }
+    .score-input::-webkit-inner-spin-button, .score-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+    .mvp-select { background: #0d2347; border: 1px solid rgba(77,184,255,0.3); border-radius: 6px; color: #fff; font-family: 'Barlow', sans-serif; padding: 8px 12px; width: 100%; outline: none; cursor: pointer; }
+    .section-title { font-size: 13px; font-family: 'Barlow'; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: #4db8ff; margin-bottom: 12px; opacity: 0.8; }
+    input[type=text], input[type=number] { background: rgba(255,255,255,0.08); border: 1px solid rgba(77,184,255,0.3); border-radius: 6px; color: #fff; font-family: 'Barlow'; padding: 8px 12px; outline: none; }
+    input[type=text]:focus, input[type=number]:focus { border-color: #4db8ff; }
+    select option { background: #0d2347; color: #fff; }
+    .shirt-input { width: 52px; background: rgba(255,255,255,0.06); border: 1px solid rgba(77,184,255,0.2); border-radius: 6px; color: #7dd3fc; font-family: 'Bebas Neue'; font-size: 18px; text-align: center; padding: 6px 4px; outline: none; -moz-appearance: textfield; }
+    .shirt-input::-webkit-inner-spin-button, .shirt-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+    .shirt-input:focus { border-color: #4db8ff; }
+    .team-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(77,184,255,0.15); border-radius: 10px; padding: 18px 20px; cursor: pointer; transition: all 0.2s; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .team-card:hover { background: rgba(77,184,255,0.08); border-color: rgba(77,184,255,0.4); transform: translateX(4px); }
+    .btn { border: none; border-radius: 6px; cursor: pointer; font-family: 'Barlow'; font-weight: 600; padding: 10px 20px; transition: all 0.2s; }
+    .btn-primary { background: rgba(77,184,255,0.15); border: 1px solid #4db8ff; color: #4db8ff; }
+    .btn-primary:hover { background: rgba(77,184,255,0.3); }
+    .btn-danger { background: none; border: 1px solid rgba(248,113,113,0.3); color: #f87171; }
+    .spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid rgba(77,184,255,0.3); border-top-color: #4db8ff; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useCallback } = React;
+
+    const SUPABASE_URL = "https://cidrictgperdtxmqaknm.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpZHJpY3RncGVyZHR4bXFha25tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MjIxMzQsImV4cCI6MjA5NTk5ODEzNH0.7EGyPucYhz8TJGuv9npMAIlC1ktpSFxcrrrUhdte0ao";
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const TEAM_GAMES = {
+      "Lt Blue": [
+        { id: 101, date:"May 27", day:"Wed", time:"5:45 PM", home:"Lt Blue", away:"Green",   field:"11" },
+        { id: 102, date:"Jun 1",  day:"Mon", time:"7:15 PM", home:"Lt Blue", away:"Maroon",  field:"11" },
+        { id: 103, date:"Jun 8",  day:"Mon", time:"5:45 PM", home:"Lt Blue", away:"Tie Dye", field:"10" },
+        { id: 104, date:"Jun 10", day:"Wed", time:"7:15 PM", home:"Lt Blue", away:"White",   field:"10" },
+        { id: 111, date:"Jun 17", day:"Wed", time:"7:15 PM", home:"Lt Blue", away:"Orange",  field:"11" },
+        { id: 105, date:"Jun 22", day:"Mon", time:"5:45 PM", home:"Red",     away:"Lt Blue", field:"10" },
+        { id: 106, date:"Jun 29", day:"Mon", time:"7:15 PM", home:"Gold",    away:"Lt Blue", field:"10" },
+        { id: 107, date:"Jul 6",  day:"Mon", time:"7:15 PM", home:"Lt Blue", away:"Dk Blue", field:"11" },
+        { id: 108, date:"Jul 29", day:"Wed", time:"6:00 PM", home:"Black",   away:"Lt Blue", field:"CP10" },
+        { id: 109, date:"Aug 10", day:"Mon", time:"6:00 PM", home:"Lt Blue", away:"White",   field:"10" },
+        { id: 110, date:"Aug 17", day:"Mon", time:"6:00 PM", home:"Tie Dye", away:"Lt Blue", field:"11" },
+      ],
+      "Taqueria 1": [
+        { id: 201, date:"Jun 2",  day:"Tue", time:"5:45 PM", home:"Taqueria 1",           away:"Taqueria 2",       field:"CP13" },
+        { id: 202, date:"Jun 9",  day:"Tue", time:"7:15 PM", home:"Pink FC",               away:"Taqueria 1",       field:"CP10" },
+        { id: 203, date:"Jun 16", day:"Tue", time:"5:45 PM", home:"Taqueria 1",            away:"H V Home Experts", field:"CP11" },
+        { id: 204, date:"Jun 30", day:"Tue", time:"5:45 PM", home:"FC Oshkosh",            away:"Taqueria 1",       field:"CP11" },
+        { id: 205, date:"Jul 7",  day:"Tue", time:"7:15 PM", home:"Taqueria 1",            away:"U-50",             field:"CP13" },
+        { id: 206, date:"Jul 14", day:"Tue", time:"7:15 PM", home:"OMS",                   away:"Taqueria 1",       field:"CP10" },
+        { id: 207, date:"Jul 21", day:"Tue", time:"5:45 PM", home:"Victorious Secret",     away:"Taqueria 1",       field:"CP13" },
+        { id: 208, date:"Aug 4",  day:"Tue", time:"5:30 PM", home:"Real Coholics",         away:"Taqueria 1",       field:"CP13" },
+        { id: 209, date:"Aug 11", day:"Tue", time:"5:30 PM", home:"Third String All-Stars",away:"Taqueria 1",       field:"CP11" },
+      ],
+      "Parker Johns": [
+        { id: 401, date:"Jun 7",  day:"Sun", time:"1:10 PM", home:"Fire Silver",        away:"Parker Johns",       field:"Calavera Springs 1" },
+        { id: 402, date:"Jun 14", day:"Sun", time:"2:50 PM", home:"Parker Johns",       away:"SunSeekers",         field:"USA Complex 11" },
+        { id: 403, date:"Jun 21", day:"Sun", time:"4:50 PM", home:"Parker Johns",       away:"Luigi's Pizza & Pasta", field:"USA Complex 12" },
+        { id: 404, date:"Jun 28", day:"Sun", time:"2:50 PM", home:"FC Green Bay",       away:"Parker Johns",       field:"USA Complex 12" },
+        { id: 405, date:"Jul 12", day:"Sun", time:"2:50 PM", home:"SunSeekers",         away:"Parker Johns",       field:"USA Complex 13" },
+        { id: 406, date:"Jul 19", day:"Sun", time:"4:50 PM", home:"Luigi's Pizza",      away:"Parker Johns",       field:"USA Complex 14" },
+        { id: 407, date:"Aug 2",  day:"Sun", time:"4:50 PM", home:"Parker Johns",       away:"FC Green Bay",       field:"USA Complex 12" },
+        { id: 408, date:"Aug 9",  day:"Sun", time:"2:50 PM", home:"Parker Johns",       away:"Prevea",             field:"USA Complex 12" },
+      ],
+      "Taqueria 2": [
+        { id: 301, date:"Jun 2",  day:"Tue", time:"5:45 PM", home:"Taqueria 1",            away:"Taqueria 2",   field:"CP13" },
+        { id: 302, date:"Jun 9",  day:"Tue", time:"5:45 PM", home:"Taqueria 2",            away:"H V Home Experts", field:"CP13" },
+        { id: 303, date:"Jun 16", day:"Tue", time:"5:45 PM", home:"U-50",                  away:"Taqueria 2",   field:"CP13" },
+        { id: 304, date:"Jun 23", day:"Tue", time:"5:45 PM", home:"FC Oshkosh",            away:"Taqueria 2",   field:"CP12" },
+        { id: 305, date:"Jun 30", day:"Tue", time:"7:15 PM", home:"Pink FC",               away:"Taqueria 2",   field:"CP12" },
+        { id: 306, date:"Jul 7",  day:"Tue", time:"5:45 PM", home:"Can't Finish",          away:"Taqueria 2",   field:"CP13" },
+        { id: 307, date:"Jul 14", day:"Tue", time:"5:45 PM", home:"Orange Slices",         away:"Taqueria 2",   field:"CP13" },
+        { id: 308, date:"Jul 28", day:"Tue", time:"5:45 PM", home:"Third String All-Stars",away:"Taqueria 2",   field:"CP13" },
+        { id: 309, date:"Aug 4",  day:"Tue", time:"7:00 PM", home:"Adashun Jones",         away:"Taqueria 2",   field:"CP13" },
+      ],
+    };
+
+    function Loading() {
+      return <div style={{ display:"flex", justifyContent:"center", padding:40 }}><div className="spinner" /></div>;
+    }
+
+    const EDITOR_PIN = "062026";
+
+    function PinModal({ onSuccess, onClose }) {
+      const [pin, setPin] = useState("");
+      const [error, setError] = useState(false);
+      const attempt = () => {
+        if (pin === EDITOR_PIN) { onSuccess(); }
+        else { setError(true); setPin(""); setTimeout(() => setError(false), 1500); }
+      };
+      return (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, padding:20 }}>
+          <div style={{ background:"#0d2347", border:"1px solid rgba(77,184,255,0.3)", borderRadius:12, padding:"32px 28px", width:"100%", maxWidth:340, textAlign:"center" }}>
+            <div style={{ fontFamily:"Bebas Neue", fontSize:28, letterSpacing:3, color:"#fff", marginBottom:6 }}>EDITOR ACCESS</div>
+            <div style={{ fontFamily:"Barlow", fontSize:14, color:"#64748b", marginBottom:24 }}>Enter PIN to edit stats</div>
+            <input type="password" inputMode="numeric" placeholder="••••••" value={pin}
+              onChange={e => setPin(e.target.value)}
+              onKeyDown={e => { if(e.key==="Enter") attempt(); }}
+              style={{ width:"100%", textAlign:"center", fontSize:24, letterSpacing:8, marginBottom:16, background: error?"rgba(248,113,113,0.1)":"rgba(255,255,255,0.08)", border:`1px solid ${error?"#f87171":"rgba(77,184,255,0.3)"}`, borderRadius:8, color:"#fff", padding:"12px", outline:"none" }}
+              autoFocus />
+            {error && <div style={{ fontFamily:"Barlow", color:"#f87171", fontSize:13, marginBottom:12 }}>Incorrect PIN</div>}
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={onClose} style={{ flex:1, background:"none", border:"1px solid #334155", borderRadius:6, color:"#64748b", padding:"10px", cursor:"pointer", fontFamily:"Barlow", fontSize:14 }}>Cancel</button>
+              <button onClick={attempt} style={{ flex:1, background:"rgba(77,184,255,0.15)", border:"1px solid #4db8ff", borderRadius:6, color:"#4db8ff", padding:"10px", cursor:"pointer", fontFamily:"Barlow", fontSize:14, fontWeight:600 }}>Unlock</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [teams, setTeams] = useState([]);
+      const [activeTeam, setActiveTeam] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const [newTeamName, setNewTeamName] = useState("");
+      const [adding, setAdding] = useState(false);
+      const [isEditor, setIsEditor] = useState(() => sessionStorage.getItem("isEditor") === "true");
+      const [showPin, setShowPin] = useState(false);
+
+      const loadTeams = useCallback(async () => {
+        setLoading(true);
+        const { data } = await sb.from("teams").select("*").order("created_at");
+        setTeams(data || []);
+        setLoading(false);
+      }, []);
+
+      useEffect(() => { loadTeams(); }, [loadTeams]);
+
+      const unlockEditor = () => {
+        setIsEditor(true);
+        sessionStorage.setItem("isEditor", "true");
+        setShowPin(false);
+      };
+
+      const lockEditor = () => {
+        setIsEditor(false);
+        sessionStorage.removeItem("isEditor");
+      };
+
+      const addTeam = async () => {
+        if (!newTeamName.trim() || !isEditor) return;
+        setAdding(true);
+        const { data, error } = await sb.from("teams").insert({ name: newTeamName.trim() }).select().single();
+        if (!error && data) {
+          const games = TEAM_GAMES[newTeamName.trim()];
+          if (games) {
+            await sb.from("games").insert(games.map(g => ({ ...g, team_id: data.id })));
+          }
+          setNewTeamName("");
+          await loadTeams();
+        }
+        setAdding(false);
+      };
+
+      const deleteTeam = async (id, e) => {
+        e.stopPropagation();
+        if (!isEditor) return;
+        if (!confirm("Delete this team and all its data?")) return;
+        await sb.from("teams").delete().eq("id", id);
+        await loadTeams();
+      };
+
+      const [showWC, setShowWC] = useState(false);
+
+      if (activeTeam) {
+        return <TeamApp team={activeTeam} isEditor={isEditor} onBack={() => { setActiveTeam(null); loadTeams(); }} />;
+      }
+
+      if (showWC) {
+        return <WorldCupApp isEditor={isEditor} onBack={() => setShowWC(false)} />;
+      }
+
+      return (
+        <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#0a1628 0%,#0d2347 50%,#0a1628 100%)", fontFamily:"'Bebas Neue','Impact',sans-serif", color:"#e8f4fd" }}>
+          {showPin && <PinModal onSuccess={unlockEditor} onClose={() => setShowPin(false)} />}
+          <div style={{ background:"rgba(77,184,255,0.05)", borderBottom:"1px solid rgba(77,184,255,0.2)", padding:"20px 20px 16px" }}>
+            <div style={{ maxWidth:720, margin:"0 auto", display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+              <div>
+                <div style={{ fontSize:38, letterSpacing:4, color:"#fff", lineHeight:1 }}>STAT TRACKER</div>
+                <div style={{ fontSize:14, fontFamily:"Barlow", color:"#4db8ff", fontWeight:300, letterSpacing:2, marginTop:4 }}>2026 SEASON · ALL TEAMS</div>
+              </div>
+              <button onClick={() => isEditor ? lockEditor() : setShowPin(true)}
+                style={{ background: isEditor?"rgba(74,222,128,0.1)":"rgba(255,255,255,0.05)", border:`1px solid ${isEditor?"rgba(74,222,128,0.3)":"rgba(255,255,255,0.1)"}`, borderRadius:8, color:isEditor?"#4ade80":"#475569", padding:"8px 14px", cursor:"pointer", fontFamily:"Barlow", fontSize:12, fontWeight:600, marginTop:4 }}>
+                {isEditor ? "🔓 EDITOR" : "🔒 VIEW ONLY"}
+              </button>
+            </div>
+          </div>
+          <div style={{ maxWidth:720, margin:"0 auto", padding:"24px 20px" }}>
+            <div className="section-title">Select a Team</div>
+            {/* World Cup Banner */}
+            <div onClick={() => setShowWC(true)} style={{ background:"linear-gradient(135deg,rgba(218,165,32,0.15),rgba(77,184,255,0.1))", border:"1px solid rgba(218,165,32,0.4)", borderRadius:10, padding:"16px 20px", marginBottom:20, cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ fontFamily:"Bebas Neue", fontSize:24, letterSpacing:3, color:"#fbbf24" }}>🏆 2026 FIFA WORLD CUP</div>
+                <div style={{ fontFamily:"Barlow", fontSize:13, color:"#94a3b8", marginTop:2 }}>Bracket Challenge · Leaderboard</div>
+              </div>
+              <div style={{ fontFamily:"Barlow", fontSize:13, color:"#fbbf24" }}>ENTER →</div>
+            </div>
+            {loading ? <Loading /> : (
+              <>
+                {teams.length === 0 && (
+                  <div style={{ fontFamily:"Barlow", color:"#475569", fontSize:14, marginBottom:20 }}>No teams yet — add one below!</div>
+                )}
+                {teams.map(team => (
+                  <div key={team.id} className="team-card" onClick={() => setActiveTeam(team)}>
+                    <div style={{ fontFamily:"Bebas Neue", fontSize:26, letterSpacing:2, color:"#e2e8f0" }}>{team.name}</div>
+                    <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                      <div style={{ fontFamily:"Barlow", fontSize:12, color:"#4db8ff" }}>VIEW →</div>
+                      {isEditor && (
+                        <button onClick={(e) => deleteTeam(team.id, e)}
+                          style={{ background:"none", border:"1px solid rgba(248,113,113,0.3)", borderRadius:5, color:"#f87171", padding:"4px 10px", cursor:"pointer", fontFamily:"Barlow", fontSize:12 }}>
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {isEditor && (
+                  <>
+                    <div style={{ display:"flex", gap:10, marginTop:20 }}>
+                      <input type="text" placeholder="New team name..." value={newTeamName}
+                        onChange={e => setNewTeamName(e.target.value)}
+                        onKeyDown={e => { if(e.key==="Enter") addTeam(); }}
+                        style={{ flex:1 }} />
+                      <button className="btn btn-primary" onClick={addTeam} disabled={adding}>
+                        {adding ? <div className="spinner" /> : "+ ADD TEAM"}
+                      </button>
+                    </div>
+                    <div style={{ fontFamily:"Barlow", fontSize:12, color:"#334155", marginTop:10 }}>
+                      💡 Type "Lt Blue", "Taqueria 1", "Taqueria 2", or "Parker Johns" to auto-load schedules
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    function TeamApp({ team, onBack, isEditor }) {
+      const [view, setView] = useState("summary");
+      const [activeGame, setActiveGame] = useState(null);
+      const [games, setGames] = useState([]);
+      const [players, setPlayers] = useState([]);
+      const [gameStats, setGameStats] = useState({});
+      const [playerStats, setPlayerStats] = useState({});
+      const [loading, setLoading] = useState(true);
+
+      const loadAll = useCallback(async () => {
+        setLoading(true);
+        const [gRes, pRes, gsRes, psRes] = await Promise.all([
+          sb.from("games").select("*").eq("team_id", team.id),
+          sb.from("players").select("*").eq("team_id", team.id).order("created_at"),
+          sb.from("game_stats").select("*").eq("team_id", team.id),
+          sb.from("player_stats").select("*").eq("team_id", team.id),
+        ]);
+        const monthOrder = {"Jan":0,"Feb":1,"Mar":2,"Apr":3,"May":4,"Jun":5,"Jul":6,"Aug":7,"Sep":8,"Oct":9,"Nov":10,"Dec":11};
+        const parseDate = (g) => {
+          try {
+            const parts = (g.date || "").trim().split(" ");
+            const month = monthOrder[parts[0]];
+            const day = parseInt(parts[1]);
+            if (month === undefined || isNaN(day)) return 9999;
+            return month * 100 + day;
+          } catch { return 9999; }
+        };
+        const sortedGames = (gRes.data || []).sort((a,b) => parseDate(a) - parseDate(b));
+        setGames(sortedGames);
+        setPlayers(pRes.data || []);
+        const gs = {};
+        (gsRes.data || []).forEach(s => { gs[s.game_id] = s; });
+        setGameStats(gs);
+        const ps = {};
+        (psRes.data || []).forEach(s => {
+          if (!ps[s.game_id]) ps[s.game_id] = {};
+          ps[s.game_id][s.player_id] = s;
+        });
+        setPlayerStats(ps);
+        setLoading(false);
+      }, [team.id]);
+
+      useEffect(() => { loadAll(); }, [loadAll]);
+
+      const upsertGameStat = async (gameId, fields) => {
+        const existing = gameStats[gameId];
+        if (existing) {
+          await sb.from("game_stats").update(fields).eq("id", existing.id);
+        } else {
+          await sb.from("game_stats").insert({ game_id: gameId, team_id: team.id, ...fields });
+        }
+        const { data } = await sb.from("game_stats").select("*").eq("game_id", gameId).eq("team_id", team.id).single();
+        setGameStats(prev => ({ ...prev, [gameId]: data }));
+      };
+
+      const upsertPlayerStat = async (gameId, playerId, fields) => {
+        const existing = playerStats[gameId]?.[playerId];
+        if (existing) {
+          await sb.from("player_stats").update(fields).eq("id", existing.id);
+        } else {
+          await sb.from("player_stats").insert({ game_id: gameId, player_id: playerId, team_id: team.id, ...fields });
+        }
+        const { data } = await sb.from("player_stats").select("*").eq("game_id", gameId).eq("player_id", playerId).single();
+        setPlayerStats(prev => ({ ...prev, [gameId]: { ...(prev[gameId]||{}), [playerId]: data } }));
+      };
+
+      const addPlayer = async (name, number) => {
+        const { data } = await sb.from("players").insert({ team_id: team.id, name, number }).select().single();
+        if (data) setPlayers(prev => [...prev, data]);
+      };
+
+      const updatePlayer = async (id, name, number) => {
+        await sb.from("players").update({ name, number }).eq("id", id);
+        setPlayers(prev => prev.map(p => p.id===id ? {...p, name, number} : p));
+      };
+
+      const deletePlayer = async (id) => {
+        await sb.from("players").delete().eq("id", id);
+        setPlayers(prev => prev.filter(p => p.id !== id));
+      };
+
+      const getGS = (gameId) => gameStats[gameId] || { score_us:"", score_them:"", clean_sheet:false, mvp:"" };
+      const getPS = (gameId, playerId) => playerStats[gameId]?.[playerId] || { goals:0, assists:0, yellow_cards:0, red_cards:0, clean_sheet:false, appeared:false };
+
+      const totals = players.map(p => {
+        let goals=0, assists=0, yellowCards=0, redCards=0, mvps=0, cleanSheets=0, appearances=0;
+        Object.entries(playerStats).forEach(([gid, gps]) => {
+          const ps = gps[p.id];
+          if (ps) { goals+=ps.goals||0; assists+=ps.assists||0; yellowCards+=ps.yellow_cards||0; redCards+=ps.red_cards||0; if(ps.clean_sheet) cleanSheets++; if(ps.appeared) appearances++; }
+        });
+        Object.values(gameStats).forEach(gs => { if(gs.mvp===p.id) mvps++; });
+        return { ...p, goals, assists, yellowCards, redCards, mvps, cleanSheets, appearances };
+      }).sort((a,b) => (b.goals+b.assists)-(a.goals+a.assists));
+
+      const rec = {
+        wins:   Object.values(gameStats).filter(g=>g.score_us!==""&&g.score_them!==""&&Number(g.score_us)>Number(g.score_them)).length,
+        losses: Object.values(gameStats).filter(g=>g.score_us!==""&&g.score_them!==""&&Number(g.score_us)<Number(g.score_them)).length,
+        draws:  Object.values(gameStats).filter(g=>g.score_us!==""&&g.score_them!==""&&Number(g.score_us)===Number(g.score_them)).length,
+        cleanSheets: Object.values(gameStats).filter(g=>g.clean_sheet).length,
+        goals: totals.reduce((s,p)=>s+p.goals,0),
+      };
+
+      const activeObj = games.find(g => g.id === activeGame);
+      const activeGS = activeGame ? getGS(activeGame) : null;
+      const opp = activeObj ? (activeObj.home===team.name ? activeObj.away : activeObj.home) : "";
+      const navTo = (v) => { setView(v); setActiveGame(null); };
+
+      if (loading) return (
+        <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#0a1628 0%,#0d2347 50%,#0a1628 100%)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <Loading />
+        </div>
+      );
+
+      return (
+        <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#0a1628 0%,#0d2347 50%,#0a1628 100%)", fontFamily:"'Bebas Neue','Impact',sans-serif", color:"#e8f4fd" }}>
+
+          {/* HEADER */}
+          <div style={{ background:"rgba(77,184,255,0.05)", borderBottom:"1px solid rgba(77,184,255,0.2)", padding:"0 20px" }}>
+            <div style={{ maxWidth:720, margin:"0 auto" }}>
+              <div style={{ padding:"16px 0 6px", display:"flex", alignItems:"center", gap:12 }}>
+                <button onClick={onBack} style={{ background:"none", border:"none", color:"#4db8ff", cursor:"pointer", fontFamily:"Barlow", fontSize:13, padding:0 }}>← ALL TEAMS</button>
+              </div>
+              <div style={{ display:"flex", alignItems:"baseline", gap:12 }}>
+                <div style={{ fontSize:34, letterSpacing:4, color:"#fff", lineHeight:1 }}>{team.name.toUpperCase()}</div>
+                <div style={{ fontSize:13, fontFamily:"Barlow", color:"#4db8ff", fontWeight:300, letterSpacing:2 }}>2026</div>
+              </div>
+              <div style={{ display:"flex", gap:20, padding:"8px 0 10px", fontFamily:"Barlow", fontSize:13, flexWrap:"wrap" }}>
+                <span style={{ color:"#4ade80" }}>{rec.wins}W</span>
+                <span style={{ color:"#f87171" }}>{rec.losses}L</span>
+                <span style={{ color:"#facc15" }}>{rec.draws}D</span>
+                <span style={{ color:"#94a3b8" }}>⚽ {rec.goals} goals</span>
+                <span style={{ color:"#94a3b8" }}>🧤 {rec.cleanSheets} clean sheets</span>
+              </div>
+              <div style={{ display:"flex", overflowX:"auto" }}>
+                {["summary","schedule","roster","leaderboard"].map(v => (
+                  <button key={v} className="nav-btn" onClick={() => navTo(v)}
+                    style={{ color:view===v&&!activeGame?"#4db8ff":"#64748b", borderBottom:view===v&&!activeGame?"2px solid #4db8ff":"2px solid transparent", whiteSpace:"nowrap" }}>
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ maxWidth:720, margin:"0 auto", padding:"24px 20px" }}>
+
+            {/* SUMMARY */}
+            {view==="summary" && !activeGame && (
+              <SummaryView games={games} gameStats={gameStats} playerStats={playerStats} players={players} team={team} rec={rec} getGS={getGS} />
+            )}
+
+            {/* SCHEDULE */}
+            {view==="schedule" && !activeGame && (
+              <div>
+                <div className="section-title">Season Games{isEditor?" — Tap to Enter Stats":""}</div>
+                {games.length === 0 && (
+                  <div style={{ fontFamily:"Barlow", color:"#475569", fontSize:14 }}>No games scheduled yet.</div>
+                )}
+                {games.map(g => {
+                  const gs = getGS(g.id);
+                  const played = gs.score_us!==""&&gs.score_them!=="";
+                  const us=Number(gs.score_us), them=Number(gs.score_them);
+                  const result = played?(us>them?"W":us<them?"L":"D"):null;
+                  const opponent = g.home===team.name?g.away:g.home;
+                  const isHome = g.home===team.name;
+                  const mvpPlayer = gs.mvp ? players.find(p=>p.id===gs.mvp) : null;
+                  return (
+                    <div key={g.id} className={`game-card${played?" played":""}`} onClick={() => { setActiveGame(g.id); setView("game"); }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                        <div style={{ display:"flex", gap:14, alignItems:"center" }}>
+                          <div style={{ textAlign:"center", minWidth:44 }}>
+                            <div style={{ fontFamily:"Barlow", fontSize:11, color:"#64748b", letterSpacing:1 }}>{g.day.toUpperCase()}</div>
+                            <div style={{ fontFamily:"Bebas Neue", fontSize:20, lineHeight:1.1 }}>{g.date}</div>
+                            <div style={{ fontFamily:"Barlow", fontSize:11, color:"#94a3b8" }}>{g.time}</div>
+                          </div>
+                          <div>
+                            <div style={{ fontFamily:"Barlow", fontSize:11, color:"#64748b", marginBottom:2 }}>{isHome?"HOME":"AWAY"} · Field {g.field}</div>
+                            <div style={{ fontFamily:"Barlow", fontSize:16, fontWeight:600, color:"#e2e8f0" }}>vs <span style={{ color:"#7dd3fc" }}>{opponent}</span></div>
+                            {mvpPlayer && <div style={{ fontFamily:"Barlow", fontSize:11, color:"#fbbf24" }}>⭐ MVP: {mvpPlayer.name}</div>}
+                          </div>
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                          {played && <div style={{ fontFamily:"Bebas Neue", fontSize:32, color:"#fff", lineHeight:1 }}>{gs.score_us}–{gs.score_them}</div>}
+                          {result && (
+                            <div style={{ width:34, height:34, borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"Bebas Neue", fontSize:20,
+                              background:result==="W"?"rgba(74,222,128,0.15)":result==="L"?"rgba(248,113,113,0.15)":"rgba(250,204,21,0.15)",
+                              color:result==="W"?"#4ade80":result==="L"?"#f87171":"#facc15" }}>{result}</div>
+                          )}
+                          {!played && isEditor && <div style={{ fontFamily:"Barlow", fontSize:12, color:"#334155" }}>+ ADD STATS</div>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* GAME DETAIL */}
+            {view==="game" && activeGame && activeObj && (
+              <GameDetail
+                game={activeObj} teamName={team.name} opponent={opp}
+                gs={activeGS} players={players}
+                getPS={getPS} isEditor={isEditor}
+                onUpdateGS={(fields) => upsertGameStat(activeGame, fields)}
+                onUpdatePS={(playerId, fields) => upsertPlayerStat(activeGame, playerId, fields)}
+                onBack={() => { setView("schedule"); setActiveGame(null); }}
+              />
+            )}
+
+            {/* ROSTER */}
+            {view==="roster" && (
+              <RosterView players={players} isEditor={isEditor} onAdd={addPlayer} onUpdate={updatePlayer} onDelete={deletePlayer} />
+            )}
+
+            {/* LEADERBOARD */}
+            {view==="leaderboard" && (
+              <div>
+                <div className="section-title">Season Leaderboard</div>
+                {totals.map((t,i) => (
+                  <div key={t.id} style={{
+                    borderRadius:8, marginBottom:8, overflow:"hidden",
+                    background:i===0&&(t.goals+t.assists)>0?"rgba(251,191,36,0.07)":"rgba(255,255,255,0.03)",
+                    border:`1px solid ${i===0&&(t.goals+t.assists)>0?"rgba(251,191,36,0.25)":"rgba(255,255,255,0.06)"}`,
+                  }}>
+                    {/* Player name row */}
+                    <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
+                      <div style={{ fontFamily:"Bebas Neue", fontSize:18, color:i<3?["#fbbf24","#94a3b8","#b45309"][i]:"#334155", minWidth:20, textAlign:"center" }}>{i+1}</div>
+                      {t.number && <span style={{ fontFamily:"Bebas Neue", fontSize:16, color:"#4db8ff" }}>#{t.number}</span>}
+                      <span style={{ fontFamily:"Barlow", fontSize:15, fontWeight:600, color:"#e2e8f0", flex:1 }}>{t.name}</span>
+                    </div>
+                    {/* Stats row */}
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", padding:"8px 6px" }}>
+                      {[
+                        { label:"APP", val:t.appearances, display:t.appearances, color:"#94a3b8" },
+                        { label:"⚽", val:t.goals, display:t.goals, color:"#4db8ff" },
+                        { label:"🎯", val:t.assists, display:t.assists, color:"#34d399" },
+                        { label:"CARDS", val:t.yellowCards+t.redCards, display:null, color:"#fbbf24", isCards:true, y:t.yellowCards, r:t.redCards },
+                        { label:"🧤", val:t.cleanSheets, display:t.cleanSheets, color:"#4db8ff" },
+                        { label:"⭐", val:t.mvps, display:t.mvps, color:"#fbbf24" },
+                      ].map(({label,val,display,color,isCards,y,r}) => (
+                        <div key={label} style={{ textAlign:"center" }}>
+                          {isCards ? (
+                            <div style={{ lineHeight:1, marginBottom:2 }}>
+                              <span style={{ fontFamily:"Bebas Neue", fontSize:18, color:y>0?"#fbbf24":"#334155" }}>{y}🟨</span>
+                              <span style={{ fontFamily:"Bebas Neue", fontSize:18, color:r>0?"#f87171":"#334155", marginLeft:2 }}>{r}🟥</span>
+                            </div>
+                          ) : (
+                            <div style={{ fontFamily:"Bebas Neue", fontSize:20, color:val>0?color:"#334155", lineHeight:1 }}>{display}</div>
+                          )}
+                          <div style={{ fontFamily:"Barlow", fontSize:10, color:"#475569", marginTop:2 }}>{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // 2026 FIFA World Cup Groups
+    const WC_GROUPS = {
+      A: ["Mexico", "South Africa", "South Korea", "Czechia"],
+      B: ["Canada", "Bosnia-Herzegovina", "Qatar", "Switzerland"],
+      C: ["Brazil", "Morocco", "Haiti", "Scotland"],
+      D: ["USA", "Paraguay", "Australia", "Turkey"],
+      E: ["Germany", "Curaçao", "Ivory Coast", "Ecuador"],
+      F: ["Netherlands", "Japan", "Sweden", "Tunisia"],
+      G: ["Belgium", "Egypt", "Iran", "New Zealand"],
+      H: ["Spain", "Cape Verde", "Saudi Arabia", "Uruguay"],
+      I: ["France", "Senegal", "Iraq", "Norway"],
+      J: ["Argentina", "Algeria", "Austria", "Jordan"],
+      K: ["Portugal", "DR Congo", "Uzbekistan", "Colombia"],
+      L: ["England", "Croatia", "Ghana", "Panama"],
+    };
+
+    const GROUP_MATCHES = [];
+    let matchId = 1;
+    Object.entries(WC_GROUPS).forEach(([group, teams]) => {
+      for (let i = 0; i < teams.length; i++) {
+        for (let j = i+1; j < teams.length; j++) {
+          GROUP_MATCHES.push({ id:`G${matchId++}`, group, home:teams[i], away:teams[j], stage:"group" });
+        }
+      }
+    });
+
+    // Official 2026 FIFA World Cup Round of 32 matchups from Wikipedia/FIFA
+    const R32_STRUCTURE = [
+      { id:"R32_1",  stage:"R32", home:"RU-A",  away:"RU-B",       label:"M73: 2nd A vs 2nd B" },
+      { id:"R32_2",  stage:"R32", home:"W-E",   away:"3rd-ABCDF",  label:"M74: 1st E vs 3rd(A/B/C/D/F)" },
+      { id:"R32_3",  stage:"R32", home:"W-F",   away:"RU-C",       label:"M75: 1st F vs 2nd C" },
+      { id:"R32_4",  stage:"R32", home:"W-C",   away:"RU-F",       label:"M76: 1st C vs 2nd F" },
+      { id:"R32_5",  stage:"R32", home:"W-I",   away:"3rd-CDFGH",  label:"M77: 1st I vs 3rd(C/D/F/G/H)" },
+      { id:"R32_6",  stage:"R32", home:"RU-E",  away:"RU-I",       label:"M78: 2nd E vs 2nd I" },
+      { id:"R32_7",  stage:"R32", home:"W-A",   away:"3rd-CEFHI",  label:"M79: 1st A vs 3rd(C/E/F/H/I)" },
+      { id:"R32_8",  stage:"R32", home:"W-L",   away:"3rd-EHIJK",  label:"M80: 1st L vs 3rd(E/H/I/J/K)" },
+      { id:"R32_9",  stage:"R32", home:"W-D",   away:"3rd-BEFIJ",  label:"M81: 1st D vs 3rd(B/E/F/I/J)" },
+      { id:"R32_10", stage:"R32", home:"W-G",   away:"3rd-AEHIJ",  label:"M82: 1st G vs 3rd(A/E/H/I/J)" },
+      { id:"R32_11", stage:"R32", home:"RU-K",  away:"RU-L",       label:"M83: 2nd K vs 2nd L" },
+      { id:"R32_12", stage:"R32", home:"W-H",   away:"RU-J",       label:"M84: 1st H vs 2nd J" },
+      { id:"R32_13", stage:"R32", home:"W-B",   away:"3rd-EFGIJ",  label:"M85: 1st B vs 3rd(E/F/G/I/J)" },
+      { id:"R32_14", stage:"R32", home:"W-J",   away:"RU-H",       label:"M86: 1st J vs 2nd H" },
+      { id:"R32_15", stage:"R32", home:"W-K",   away:"3rd-DEIJL",  label:"M87: 1st K vs 3rd(D/E/I/J/L)" },
+      { id:"R32_16", stage:"R32", home:"RU-D",  away:"RU-G",       label:"M88: 2nd D vs 2nd G" },
+    ];
+
+    const KNOCKOUT_MATCHES = [
+      ...R32_STRUCTURE,
+      // Round of 16 - fed by R32 winners
+      { id:"R16_1", stage:"R16", label:"M89", feedHome:"R32_2",  feedAway:"R32_5"  }, // W74 v W77
+      { id:"R16_2", stage:"R16", label:"M90", feedHome:"R32_1",  feedAway:"R32_3"  }, // W73 v W75
+      { id:"R16_3", stage:"R16", label:"M91", feedHome:"R32_4",  feedAway:"R32_6"  }, // W76 v W78
+      { id:"R16_4", stage:"R16", label:"M92", feedHome:"R32_7",  feedAway:"R32_8"  }, // W79 v W80
+      { id:"R16_5", stage:"R16", label:"M93", feedHome:"R32_11", feedAway:"R32_12" }, // W83 v W84
+      { id:"R16_6", stage:"R16", label:"M94", feedHome:"R32_9",  feedAway:"R32_10" }, // W81 v W82
+      { id:"R16_7", stage:"R16", label:"M95", feedHome:"R32_14", feedAway:"R32_16" }, // W86 v W88
+      { id:"R16_8", stage:"R16", label:"M96", feedHome:"R32_13", feedAway:"R32_15" }, // W85 v W87
+      // Quarter Finals
+      { id:"QF_1", stage:"QF", label:"M97 · QF1", feedHome:"R16_1", feedAway:"R16_2" }, // W89 v W90
+      { id:"QF_2", stage:"QF", label:"M98 · QF2", feedHome:"R16_5", feedAway:"R16_6" }, // W93 v W94
+      { id:"QF_3", stage:"QF", label:"M99 · QF3", feedHome:"R16_3", feedAway:"R16_4" }, // W91 v W92
+      { id:"QF_4", stage:"QF", label:"M100 · QF4", feedHome:"R16_7", feedAway:"R16_8" }, // W95 v W96
+      // Semi Finals
+      { id:"SF_1", stage:"SF", label:"M101 · SF1", feedHome:"QF_1", feedAway:"QF_2" }, // W97 v W98
+      { id:"SF_2", stage:"SF", label:"M102 · SF2", feedHome:"QF_3", feedAway:"QF_4" }, // W99 v W100
+      // Final
+      { id:"F_1", stage:"F", label:"🏆 FINAL", feedHome:"SF_1", feedAway:"SF_2" }, // W101 v W102
+    ];
+
+    // Calculate group standings from match results
+    function calcGroupStandings(group, matchResults) {
+      const teams = WC_GROUPS[group];
+      const stats = {};
+      teams.forEach(t => { stats[t] = { pts:0, gf:0, ga:0, gd:0, w:0, d:0, l:0 }; });
+
+      GROUP_MATCHES.filter(m => m.group === group).forEach(m => {
+        const r = matchResults[m.id];
+        if (!r || r.home_score == null) return;
+        const hs = r.home_score, as_ = r.away_score;
+        stats[m.home].gf += hs; stats[m.home].ga += as_; stats[m.home].gd += hs-as_;
+        stats[m.away].gf += as_; stats[m.away].ga += hs; stats[m.away].gd += as_-hs;
+        if (hs > as_) { stats[m.home].pts+=3; stats[m.home].w++; stats[m.away].l++; }
+        else if (hs === as_) { stats[m.home].pts++; stats[m.away].pts++; stats[m.home].d++; stats[m.away].d++; }
+        else { stats[m.away].pts+=3; stats[m.away].w++; stats[m.home].l++; }
+      });
+
+      return Object.entries(stats)
+        .sort((a,b) => b[1].pts-a[1].pts || b[1].gd-a[1].gd || b[1].gf-a[1].gf)
+        .map(([name, s]) => ({ name, ...s }));
+    }
+
+    // Resolve a slot like "W-A", "RU-B", "3rd-ABCDE" to a team name.
+    // For 3rd place slots, we must allocate the 8 best 3rd-place teams across all
+    // 8 third-place slots WITHOUT duplicates, respecting each slot's allowed groups.
+    function getThirdPlaceAllocation(matchResults) {
+      // 1. Compute 3rd place team only for groups where ALL 6 matches have results
+      const thirds = [];
+      Object.keys(WC_GROUPS).forEach(g => {
+        const groupGameIds = GROUP_MATCHES.filter(m => m.group === g).map(m => m.id);
+        const allPlayed = groupGameIds.every(id => matchResults[id]?.home_score != null);
+        if (!allPlayed) return; // skip incomplete groups
+        const standings = calcGroupStandings(g, matchResults);
+        if (standings[2]) thirds.push({ ...standings[2], group: g });
+      });
+
+      // 2. Rank all complete 3rd place teams; take best 8 (FIFA: pts, GD, GF)
+      const ranked = [...thirds].sort((a,b) => b.pts-a.pts || b.gd-a.gd || b.gf-a.gf);
+      const qualified = ranked.slice(0, 8);
+      const qualifiedGroups = new Set(qualified.map(t => t.group));
+
+      // 3. The 8 slots and their allowed groups (from FIFA M74-M87)
+      const slots = [
+        { slotId:"R32_2", allowed:["A","B","C","D","F"] }, // M74 1E
+        { slotId:"R32_5", allowed:["C","D","F","G","H"] }, // M77 1I
+        { slotId:"R32_7", allowed:["C","E","F","H","I"] }, // M79 1A
+        { slotId:"R32_8", allowed:["E","H","I","J","K"] }, // M80 1L
+        { slotId:"R32_9", allowed:["B","E","F","I","J"] }, // M81 1D
+        { slotId:"R32_10", allowed:["A","E","H","I","J"] }, // M82 1G
+        { slotId:"R32_13", allowed:["E","F","G","I","J"] }, // M85 1B
+        { slotId:"R32_15", allowed:["D","E","I","J","L"] }, // M87 1K
+      ];
+
+      // 4. Greedy bipartite assignment: assign qualifying groups to slots.
+      // Process slots with fewest valid options first to avoid conflicts.
+      const assignment = {};
+      const usedGroups = new Set();
+      const remainingSlots = slots.map(s => ({
+        ...s,
+        options: s.allowed.filter(g => qualifiedGroups.has(g))
+      }));
+
+      // iterate until all slots assigned
+      let safety = 0;
+      while (remainingSlots.some(s => !assignment[s.slotId]) && safety < 50) {
+        safety++;
+        // pick unassigned slot with fewest available options
+        const open = remainingSlots
+          .filter(s => !assignment[s.slotId])
+          .map(s => ({ ...s, avail: s.options.filter(g => !usedGroups.has(g)) }))
+          .sort((a,b) => a.avail.length - b.avail.length);
+        if (open.length === 0) break;
+        const slot = open[0];
+        if (slot.avail.length === 0) { assignment[slot.slotId] = null; continue; }
+        // assign the best-ranked available group to this slot
+        const bestGroup = qualified.find(t => slot.avail.includes(t.group) && !usedGroups.has(t.group))?.group || slot.avail[0];
+        assignment[slot.slotId] = bestGroup;
+        usedGroups.add(bestGroup);
+      }
+
+      // 5. Map slotId -> team name
+      const result = {};
+      Object.entries(assignment).forEach(([slotId, group]) => {
+        if (!group) { result[slotId] = "3rd Place"; return; }
+        const team = thirds.find(t => t.group === group);
+        result[slotId] = team?.name || "3rd Place";
+      });
+      return result;
+    }
+
+    function resolveSlot(slot, matchResults, slotId) {
+      if (!slot.includes("-")) return slot;
+      if (slot.startsWith("W-")) {
+        const standings = calcGroupStandings(slot.replace("W-",""), matchResults);
+        return standings[0]?.name || `1st Group ${slot.replace("W-","")}`;
+      }
+      if (slot.startsWith("RU-")) {
+        const standings = calcGroupStandings(slot.replace("RU-",""), matchResults);
+        return standings[1]?.name || `2nd Group ${slot.replace("RU-","")}`;
+      }
+      if (slot.startsWith("3rd-")) {
+        // Need full allocation to avoid duplicate teams across slots
+        const alloc = getThirdPlaceAllocation(matchResults);
+        return alloc[slotId] || "3rd Place";
+      }
+      return slot;
+    }
+
+    // First match kickoff: June 11, 2026, 2:00 PM Central Time (UTC-5 CDT)
+    const KICKOFF = new Date("2026-06-11T14:00:00-05:00");
+
+    function WorldCupApp({ isEditor, onBack }) {
+      const [wcView, setWcView] = useState("bracket"); // bracket | leaderboard | admin
+      const [participants, setParticipants] = useState([]);
+      const [predictions, setPredictions] = useState({});
+      const [results, setResults] = useState({});
+      const [myName, setMyName] = useState(() => localStorage.getItem("wc_name") || "");
+      const [myId, setMyId] = useState(() => localStorage.getItem("wc_id") || "");
+      const [nameInput, setNameInput] = useState("");
+      const [loading, setLoading] = useState(true);
+      const [activeGroup, setActiveGroup] = useState("A");
+      const [activeStage, setActiveStage] = useState("group");
+      const [lastSync, setLastSync] = useState(null);
+      const [syncing, setSyncing] = useState(false);
+      const [apiMatches, setApiMatches] = useState([]);
+      const [viewingId, setViewingId] = useState(null); // viewing someone else's bracket
+      const [now, setNow] = useState(new Date());
+      useEffect(() => {
+        const t = setInterval(() => setNow(new Date()), 1000);
+        return () => clearInterval(t);
+      }, []);
+      const kickoffPassed = now >= KICKOFF;
+
+      const loadAll = useCallback(async () => {
+        setLoading(true);
+        // Fetch all predictions in pages of 1000 to bypass Supabase's default row limit
+        let allPreds = [];
+        let from = 0;
+        const pageSize = 1000;
+        while (true) {
+          const { data, error } = await sb.from("wc_predictions").select("*").range(from, from + pageSize - 1);
+          if (error || !data || data.length === 0) break;
+          allPreds = allPreds.concat(data);
+          if (data.length < pageSize) break;
+          from += pageSize;
+        }
+        const [pRes, resRes] = await Promise.all([
+          sb.from("wc_participants").select("*").order("created_at"),
+          sb.from("wc_results").select("*"),
+        ]);
+        setParticipants(pRes.data || []);
+        const predMap = {};
+        allPreds.forEach(p => {
+          if (!predMap[p.participant_id]) predMap[p.participant_id] = {};
+          predMap[p.participant_id][p.match_id] = p;
+        });
+        setPredictions(predMap);
+        const resMap = {};
+        (resRes.data || []).forEach(r => { resMap[r.match_id] = r; });
+        setResults(resMap);
+        setLoading(false);
+      }, []);
+
+      useEffect(() => { loadAll(); }, [loadAll]);
+
+      // Auto-fetch live scores every 5 minutes
+      const fetchLiveScores = useCallback(async () => {
+        setSyncing(true);
+        try {
+          const res = await fetch("/api/scores");
+          const data = await res.json();
+          if (!data.matches) { setSyncing(false); return; }
+          setApiMatches(data.matches);
+
+          const updates = [];
+          for (const match of data.matches) {
+            if (match.status !== "FINISHED" && match.status !== "IN_PLAY" && match.status !== "PAUSED") continue;
+            const homeGoals = match.score?.fullTime?.home ?? match.score?.currentScore?.home;
+            const awayGoals = match.score?.fullTime?.away ?? match.score?.currentScore?.away;
+            if (homeGoals == null || awayGoals == null) continue;
+
+            // Map API team names to our match IDs — BOTH teams must match the same fixture
+            const homeName = (match.homeTeam?.name || "").toLowerCase();
+            const awayName = (match.awayTeam?.name || "").toLowerCase();
+            const norm = (s) => s.toLowerCase().replace(/[^a-z]/g,"");
+            // Canonical aliases: map every known API name variant to a single key.
+            // Covers all 48 teams; safe because it only ADDS matches, never removes.
+            const ALIASES = {
+              // Group A
+              "mexico":"mexico", "southafrica":"southafrica", "rsa":"southafrica",
+              "southkorea":"southkorea","korearepublic":"southkorea","republicofkorea":"southkorea","korea":"southkorea","kor":"southkorea",
+              "czechia":"czechia","czechrepublic":"czechia","cze":"czechia",
+              // Group B
+              "canada":"canada","can":"canada",
+              "bosniaherzegovina":"bosniaherzegovina","bosniaandherzegovina":"bosniaherzegovina","bih":"bosniaherzegovina",
+              "qatar":"qatar","qat":"qatar",
+              "switzerland":"switzerland","sui":"switzerland","s)":"switzerland",
+              // Group C
+              "brazil":"brazil","bra":"brazil",
+              "morocco":"morocco","mar":"morocco",
+              "haiti":"haiti","hai":"haiti",
+              "scotland":"scotland","sco":"scotland",
+              // Group D
+              "usa":"usa","unitedstates":"usa","unitedstatesofamerica":"usa","us":"usa","usmnt":"usa",
+              "paraguay":"paraguay","par":"paraguay",
+              "australia":"australia","aus":"australia",
+              "turkey":"turkey","turkiye":"turkey","tur":"turkey",
+              // Group E
+              "germany":"germany","ger":"germany",
+              "curacao":"curacao","cuw":"curacao",
+              "ivorycoast":"ivorycoast","cotedivoire":"ivorycoast","civ":"ivorycoast",
+              "ecuador":"ecuador","ecu":"ecuador",
+              // Group F
+              "netherlands":"netherlands","holland":"netherlands","ned":"netherlands",
+              "japan":"japan","jpn":"japan",
+              "sweden":"sweden","swe":"sweden",
+              "tunisia":"tunisia","tun":"tunisia",
+              // Group G
+              "belgium":"belgium","bel":"belgium",
+              "egypt":"egypt","egy":"egypt",
+              "iran":"iran","irislamicrepublicofiran":"iran","iranislamicrepublic":"iran","irn":"iran",
+              "newzealand":"newzealand","nzl":"newzealand",
+              // Group H
+              "spain":"spain","esp":"spain",
+              "capeverde":"capeverde","caboverde":"capeverde","cpv":"capeverde",
+              "saudiarabia":"saudiarabia","ksa":"saudiarabia",
+              "uruguay":"uruguay","uru":"uruguay",
+              // Group I
+              "france":"france","fra":"france",
+              "senegal":"senegal","sen":"senegal",
+              "iraq":"iraq","irq":"iraq",
+              "norway":"norway","nor":"norway",
+              // Group J
+              "argentina":"argentina","arg":"argentina",
+              "algeria":"algeria","alg":"algeria",
+              "austria":"austria","aut":"austria",
+              "jordan":"jordan","jor":"jordan",
+              // Group K
+              "portugal":"portugal","por":"portugal",
+              "drcongo":"drcongo","democraticrepublicofthecongo":"drcongo","congodr":"drcongo","cod":"drcongo",
+              "uzbekistan":"uzbekistan","uzb":"uzbekistan",
+              "colombia":"colombia","col":"colombia",
+              // Group L
+              "england":"england","eng":"england",
+              "croatia":"croatia","cro":"croatia",
+              "ghana":"ghana","gha":"ghana",
+              "panama":"panama","pan":"panama",
+            };
+            const canon = (s) => { const n = norm(s); return ALIASES[n] || n; };
+            const teamsMatch = (apiName, ourName) => {
+              const a = canon(apiName), o = canon(ourName);
+              return a === o;
+            };
+            // Try home-away orientation, then swapped (in case API lists teams in different order)
+            let foundMatch = GROUP_MATCHES.find(m =>
+              (teamsMatch(homeName, m.home) && teamsMatch(awayName, m.away))
+            );
+            let swapped = false;
+            if (!foundMatch) {
+              foundMatch = GROUP_MATCHES.find(m =>
+                (teamsMatch(homeName, m.away) && teamsMatch(awayName, m.home))
+              );
+              swapped = !!foundMatch;
+            }
+            if (!foundMatch) continue;
+            // Align scores to OUR home/away orientation
+            const ourHome = swapped ? awayGoals : homeGoals;
+            const ourAway = swapped ? homeGoals : awayGoals;
+            updates.push({ matchId: foundMatch.id, home: ourHome, away: ourAway });
+          }
+
+          // Save all updates to Supabase
+          for (const u of updates) {
+            const existing = results[u.matchId];
+            if (existing) {
+              await sb.from("wc_results").update({ home_score: u.home, away_score: u.away, updated_at: new Date().toISOString() }).eq("id", existing.id);
+            } else {
+              await sb.from("wc_results").insert({ match_id: u.matchId, home_score: u.home, away_score: u.away });
+            }
+          }
+
+          if (updates.length > 0) await loadAll();
+          setLastSync(new Date());
+        } catch(e) {
+          console.error("Score fetch failed:", e);
+        }
+        setSyncing(false);
+      }, [results, loadAll]);
+
+      useEffect(() => {
+        fetchLiveScores();
+        const interval = setInterval(fetchLiveScores, 5 * 60 * 1000);
+        return () => clearInterval(interval);
+      }, []);
+
+      useEffect(() => { loadAll(); }, [loadAll]);
+
+      const [myLocked, setMyLocked] = useState(() => localStorage.getItem("wc_locked") === "true");
+
+      const joinBracket = async () => {
+        const name = nameInput.trim();
+        if (!name) return;
+
+        // Check if this name already exists (case-insensitive)
+        const { data: existing } = await sb.from("wc_participants").select("*").ilike("name", name);
+        if (existing && existing.length > 0) {
+          const match = existing[0];
+          const resume = confirm(`"${match.name}" already has a bracket. Tap OK to resume and edit it, or Cancel to pick a different name.`);
+          if (resume) {
+            // Re-open for editing (unless the tournament has already started)
+            if (match.locked && !kickoffPassed) {
+              await sb.from("wc_participants").update({ locked: false }).eq("id", match.id);
+            }
+            setMyName(match.name);
+            setMyId(match.id);
+            localStorage.setItem("wc_name", match.name);
+            localStorage.setItem("wc_id", match.id);
+            localStorage.setItem("wc_locked", "false");
+            setMyLocked(false);
+            setNameInput("");
+            await loadAll();
+          }
+          return;
+        }
+
+        // New name — create entry
+        const { data, error } = await sb.from("wc_participants").insert({ name }).select().single();
+        if (!error && data) {
+          setMyName(data.name);
+          setMyId(data.id);
+          localStorage.setItem("wc_name", data.name);
+          localStorage.setItem("wc_id", data.id);
+          localStorage.setItem("wc_locked", "false");
+          setMyLocked(false);
+          setNameInput("");
+          await loadAll();
+        }
+      };
+
+      const effectiveLocked = myLocked || kickoffPassed;
+
+      const lockBracket = async () => {
+        if (!myId || myLocked) return;
+        if (!confirm("Are you sure? Once locked your predictions can't be changed!")) return;
+        // Reload predictions from DB to confirm everything saved
+        const { data: savedPreds } = await sb.from("wc_predictions").select("*").eq("participant_id", myId);
+        const savedCount = (savedPreds || []).length;
+        if (savedCount === 0) {
+          alert("No predictions were saved! Please re-enter your bracket before locking. (Check your internet connection.)");
+          return;
+        }
+        // Warn if the bracket looks incomplete (72 group games is a full set)
+        if (savedCount < 72) {
+          if (!confirm(`Only ${savedCount} predictions saved (a full bracket has many more). Some picks may not have saved. Lock anyway?`)) return;
+        } else if (!confirm(`${savedCount} predictions saved to the server. Lock in your bracket now?`)) {
+          return;
+        }
+        const { error } = await sb.from("wc_participants").update({ locked: true }).eq("id", myId);
+        if (error) { alert("Couldn't lock — try again."); return; }
+        setMyLocked(true);
+        localStorage.setItem("wc_locked", "true");
+        await loadAll();
+      };
+
+      const deleteParticipant = async (id, name) => {
+        if (!isEditor) return;
+        if (!confirm(`Delete ${name}'s bracket? This cannot be undone.`)) return;
+        await sb.from("wc_predictions").delete().eq("participant_id", id);
+        await sb.from("wc_participants").delete().eq("id", id);
+        if (id === myId) { localStorage.removeItem("wc_id"); localStorage.removeItem("wc_name"); localStorage.removeItem("wc_locked"); }
+        await loadAll();
+      };
+
+      const [saveError, setSaveError] = useState(false);
+
+      const savePrediction = async (matchId, homeScore, awayScore) => {
+        if (!myId || effectiveLocked) return;
+        // Optimistic UI update
+        setPredictions(prev => ({
+          ...prev,
+          [myId]: { ...(prev[myId]||{}), [matchId]: { ...(prev[myId]?.[matchId]||{}), match_id: matchId, home_score: homeScore, away_score: awayScore }}
+        }));
+        try {
+          const existing = predictions[myId]?.[matchId];
+          if (existing?.id) {
+            const { error } = await sb.from("wc_predictions").update({ home_score: homeScore, away_score: awayScore }).eq("id", existing.id);
+            if (error) throw error;
+          } else {
+            // upsert to avoid duplicate-key races
+            const { data, error } = await sb.from("wc_predictions")
+              .upsert({ participant_id: myId, match_id: matchId, home_score: homeScore, away_score: awayScore }, { onConflict: "participant_id,match_id" })
+              .select().single();
+            if (error) throw error;
+            if (data) {
+              setPredictions(prev => ({ ...prev, [myId]: { ...(prev[myId]||{}), [matchId]: data }}));
+            }
+          }
+          setSaveError(false);
+        } catch (e) {
+          console.error("Save failed:", e);
+          setSaveError(true);
+        }
+      };
+
+      const saveResult = async (matchId, homeScore, awayScore) => {
+        const existing = results[matchId];
+        if (existing) {
+          await sb.from("wc_results").update({ home_score: homeScore, away_score: awayScore, updated_at: new Date().toISOString() }).eq("id", existing.id);
+        } else {
+          await sb.from("wc_results").insert({ match_id: matchId, home_score: homeScore, away_score: awayScore });
+        }
+        setResults(prev => ({ ...prev, [matchId]: { ...(prev[matchId]||{}), match_id: matchId, home_score: homeScore, away_score: awayScore }}));
+      };
+
+      const calcPoints = (participantId) => {
+        let pts = 0;
+        const preds = predictions[participantId] || {};
+
+        // Resolve this participant's bracket path purely from THEIR predictions
+        const pGroupResults = {};
+        GROUP_MATCHES.forEach(m => {
+          const pred = preds[m.id];
+          if (pred?.home_score != null) pGroupResults[m.id] = pred;
+        });
+
+        // Group stage scoring
+        GROUP_MATCHES.forEach(m => {
+          const pred = preds[m.id];
+          const res = results[m.id];
+          if (!pred || res?.home_score == null || res?.away_score == null) return;
+          const predWinner = pred.home_score > pred.away_score ? "home" : pred.home_score < pred.away_score ? "away" : "draw";
+          const resWinner = res.home_score > res.away_score ? "home" : res.home_score < res.away_score ? "away" : "draw";
+          if (predWinner === resWinner) pts += 2;
+          if (pred.home_score === res.home_score && pred.away_score === res.away_score) pts += 1;
+        });
+
+        // Knockout scoring (ROUND-BASED): for each round, award 2pts for each team
+        // the participant picked to win in that round that actually won a match in that round.
+        // This avoids "right team, wrong slot" zero-point situations.
+        const rounds = ["R32","R16","QF","SF","F"];
+        // Resolve actual teams using real group results + real knockout results
+        const realGroupResults = {};
+        GROUP_MATCHES.forEach(m => { if (results[m.id]?.home_score != null) realGroupResults[m.id] = results[m.id]; });
+
+        rounds.forEach(round => {
+          const roundMatches = KNOCKOUT_MATCHES.filter(m => m.stage === round);
+
+          // Teams the participant picked to win in this round
+          const myWinners = new Set();
+          roundMatches.forEach(m => {
+            const pred = preds[m.id];
+            if (!pred || pred.home_score == null) return;
+            const myTeams = resolveKnockoutTeams(m.id, preds, pGroupResults, preds);
+            const w = pred.home_score > pred.away_score ? myTeams.home : myTeams.away;
+            if (w && w !== "TBD") myWinners.add(w);
+          });
+
+          // Teams that actually won in this round (from real results)
+          const actualWinners = new Set();
+          roundMatches.forEach(m => {
+            const res = results[m.id];
+            if (!res || res.home_score == null) return;
+            const actualTeams = resolveKnockoutTeams(m.id, preds, realGroupResults, results);
+            const w = res.home_score > res.away_score ? actualTeams.home : actualTeams.away;
+            if (w && w !== "TBD") actualWinners.add(w);
+          });
+
+          // Award 2pts per correctly-predicted advancing team in this round
+          myWinners.forEach(team => {
+            if (actualWinners.has(team)) pts += 2;
+          });
+        });
+        return pts;
+      };
+
+      const leaderboard = participants.map(p => ({ ...p, points: calcPoints(p.id) }))
+        .sort((a,b) => b.points - a.points);
+
+      const saveKnockoutPick = async (matchId, winner) => {
+        if (!myId || effectiveLocked) return;
+        // Store winner as home_score=1 away_score=0 if home wins, 0-1 if away
+        const homeScore = winner === "home" ? 1 : 0;
+        const awayScore = winner === "away" ? 1 : 0;
+        await savePrediction(matchId, homeScore, awayScore);
+      };
+
+      const groupMatches = GROUP_MATCHES.filter(m => m.group === activeGroup);
+      // When viewing someone else's bracket, show their preds (read-only)
+      const viewingPerson = viewingId ? participants.find(p => p.id === viewingId) : null;
+      const displayId = viewingId || myId;
+      const myPreds = predictions[displayId] || {};
+      const isViewingOther = viewingId && viewingId !== myId;
+
+      return (
+        <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#0a1628 0%,#0d2347 50%,#0a1628 100%)", fontFamily:"'Bebas Neue','Impact',sans-serif", color:"#e8f4fd" }}>
+          {/* Header */}
+          <div style={{ background:"rgba(218,165,32,0.08)", borderBottom:"1px solid rgba(218,165,32,0.2)", padding:"0 20px" }}>
+            <div style={{ maxWidth:720, margin:"0 auto" }}>
+              <div style={{ padding:"16px 0 6px", display:"flex", alignItems:"center", gap:12 }}>
+                <button onClick={onBack} style={{ background:"none", border:"none", color:"#fbbf24", cursor:"pointer", fontFamily:"Barlow", fontSize:13, padding:0 }}>← BACK</button>
+              </div>
+              <div style={{ fontSize:30, letterSpacing:3, color:"#fbbf24", lineHeight:1 }}>🏆 2026 FIFA WORLD CUP</div>
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:4, marginBottom:10 }}>
+                <div style={{ fontSize:13, fontFamily:"Barlow", color:"#94a3b8" }}>BRACKET CHALLENGE</div>
+                <div style={{ display:"flex", alignItems:"center", gap:6, fontFamily:"Barlow", fontSize:11 }}>
+                  {syncing ? (
+                    <><div className="spinner" style={{ width:10, height:10, borderWidth:1 }} /><span style={{ color:"#4db8ff" }}>Syncing scores...</span></>
+                  ) : lastSync ? (
+                    <span style={{ color:"#334155" }}>● Last sync {lastSync.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"})}</span>
+                  ) : null}
+                  <button onClick={fetchLiveScores} style={{ background:"none", border:"1px solid #334155", borderRadius:4, color:"#475569", padding:"2px 8px", cursor:"pointer", fontFamily:"Barlow", fontSize:11 }}>↻ Sync</button>
+                </div>
+              </div>
+              <div style={{ display:"flex", overflowX:"auto", gap:0 }}>
+                {["bracket","daily","leaderboard",...(isEditor?["admin"]:[])] .map(v => (
+                  <button key={v} className="nav-btn" onClick={() => { setWcView(v); setViewingId(null); }}
+                    style={{ color:wcView===v?"#fbbf24":"#64748b", borderBottom:wcView===v?"2px solid #fbbf24":"2px solid transparent", fontSize:16 }}>
+                    {v.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ maxWidth:720, margin:"0 auto", padding:"20px 20px" }}>
+
+            {/* Join banner */}
+            {!myId && wcView === "bracket" && !kickoffPassed && (
+              <div style={{ background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.3)", borderRadius:10, padding:"20px", marginBottom:20 }}>
+                <div style={{ fontFamily:"Bebas Neue", fontSize:22, color:"#fbbf24", marginBottom:12 }}>JOIN THE BRACKET</div>
+                <div style={{ display:"flex", gap:10 }}>
+                  <input type="text" placeholder="Your name..." value={nameInput} onChange={e=>setNameInput(e.target.value)}
+                    onKeyDown={e=>{ if(e.key==="Enter") joinBracket(); }} style={{ flex:1 }} />
+                  <button onClick={joinBracket} style={{ background:"rgba(251,191,36,0.2)", border:"1px solid #fbbf24", borderRadius:6, color:"#fbbf24", padding:"8px 18px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:18 }}>JOIN</button>
+                </div>
+              </div>
+            )}
+
+            {/* Viewing someone else's bracket */}
+            {isViewingOther && wcView === "bracket" && (
+              <div style={{ background:"rgba(77,184,255,0.1)", border:"1px solid rgba(77,184,255,0.3)", borderRadius:8, padding:"10px 16px", marginBottom:16, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div style={{ fontFamily:"Barlow", fontSize:14, color:"#4db8ff" }}>
+                  👁 Viewing <strong>{viewingPerson?.name}</strong>'s bracket · {calcPoints(viewingId)} pts
+                </div>
+                <button onClick={() => { setViewingId(null); setWcView("leaderboard"); }} style={{ background:"rgba(77,184,255,0.15)", border:"1px solid #4db8ff", borderRadius:6, color:"#4db8ff", padding:"6px 14px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:14, letterSpacing:1 }}>
+                  ← BACK
+                </button>
+              </div>
+            )}
+
+            {saveError && wcView === "bracket" && !isViewingOther && (
+              <div style={{ background:"rgba(248,113,113,0.15)", border:"1px solid #f87171", borderRadius:8, padding:"10px 16px", marginBottom:12, fontFamily:"Barlow", fontSize:13, color:"#f87171", textAlign:"center" }}>
+                ⚠️ A pick didn't save — check your connection and re-tap it before locking.
+              </div>
+            )}
+
+            {/* Kickoff countdown */}
+            {wcView === "bracket" && !isViewingOther && (() => {
+              if (kickoffPassed) {
+                return (
+                  <div style={{ background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.3)", borderRadius:8, padding:"10px 16px", marginBottom:12, textAlign:"center", fontFamily:"Bebas Neue", fontSize:16, letterSpacing:1, color:"#f87171" }}>
+                    🔒 TOURNAMENT STARTED — BRACKETS LOCKED
+                  </div>
+                );
+              }
+              const diff = KICKOFF - now;
+              const d = Math.floor(diff/(1000*60*60*24));
+              const h = Math.floor((diff%(1000*60*60*24))/(1000*60*60));
+              const m = Math.floor((diff%(1000*60*60))/(1000*60));
+              const s = Math.floor((diff%(1000*60))/1000);
+              return (
+                <div style={{ background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.3)", borderRadius:8, padding:"12px 16px", marginBottom:12, textAlign:"center" }}>
+                  <div style={{ fontFamily:"Barlow", fontSize:11, color:"#94a3b8", letterSpacing:2, marginBottom:4 }}>⏱ BRACKETS LOCK AT KICKOFF</div>
+                  <div style={{ fontFamily:"Bebas Neue", fontSize:26, color:"#fbbf24", letterSpacing:2 }}>
+                    {d}d {h}h {m}m {s}s
+                  </div>
+                </div>
+              );
+            })()}
+
+            {myId && wcView === "bracket" && !isViewingOther && (
+              <div style={{ background: effectiveLocked?"rgba(248,113,113,0.08)":"rgba(74,222,128,0.08)", border:`1px solid ${effectiveLocked?"rgba(248,113,113,0.2)":"rgba(74,222,128,0.2)"}`, borderRadius:8, padding:"10px 16px", marginBottom:16, display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                <div style={{ fontFamily:"Barlow", fontSize:14, color: effectiveLocked?"#f87171":"#4ade80" }}>
+                  {effectiveLocked ? "🔒 Bracket locked" : "✓ Filling out as"} <strong>{myName}</strong> · {calcPoints(myId)} pts so far
+                </div>
+                <div style={{ display:"flex", gap:8 }}>
+                  {!effectiveLocked && (
+                    <button onClick={lockBracket} style={{ background:"rgba(248,113,113,0.15)", border:"1px solid #f87171", borderRadius:6, color:"#f87171", padding:"6px 14px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:14, letterSpacing:1 }}>
+                      🔒 LOCK IN
+                    </button>
+                  )}
+                  {myLocked && !kickoffPassed && (
+                    <button onClick={async () => {
+                      await sb.from("wc_participants").update({ locked: false }).eq("id", myId);
+                      setMyLocked(false);
+                      localStorage.setItem("wc_locked", "false");
+                    }} style={{ background:"rgba(77,184,255,0.15)", border:"1px solid #4db8ff", borderRadius:6, color:"#4db8ff", padding:"6px 14px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:14, letterSpacing:1 }}>
+                      ✏️ EDIT
+                    </button>
+                  )}
+                  <button onClick={() => {
+                    localStorage.removeItem("wc_id"); localStorage.removeItem("wc_name"); localStorage.removeItem("wc_locked");
+                    setMyId(""); setMyName(""); setMyLocked(false);
+                  }} style={{ background:"none", border:"1px solid #334155", borderRadius:6, color:"#64748b", padding:"6px 12px", cursor:"pointer", fontFamily:"Barlow", fontSize:12 }}>
+                    Switch
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* BRACKET VIEW */}
+            {wcView === "bracket" && (
+              <div>
+                {/* Stage tabs - Groups only, knockout is in bracket view */}
+                <div style={{ display:"flex", gap:8, marginBottom:16 }}>
+                  <button onClick={() => setActiveStage("group")}
+                    style={{ background:activeStage==="group"?"rgba(251,191,36,0.2)":"rgba(255,255,255,0.04)", border:`1px solid ${activeStage==="group"?"#fbbf24":"rgba(255,255,255,0.1)"}`, borderRadius:6, color:activeStage==="group"?"#fbbf24":"#64748b", padding:"6px 18px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:16 }}>
+                    GROUPS
+                  </button>
+                  <button onClick={() => setActiveStage("knockout")}
+                    style={{ background:activeStage==="knockout"?"rgba(251,191,36,0.2)":"rgba(255,255,255,0.04)", border:`1px solid ${activeStage==="knockout"?"#fbbf24":"rgba(255,255,255,0.1)"}`, borderRadius:6, color:activeStage==="knockout"?"#fbbf24":"#64748b", padding:"6px 18px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:16 }}>
+                    BRACKET
+                  </button>
+                </div>
+
+                {/* Group stage */}
+                {activeStage === "group" && (
+                  <div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:16 }}>
+                      {Object.keys(WC_GROUPS).map(g => (
+                        <button key={g} onClick={() => setActiveGroup(g)}
+                          style={{ background:activeGroup===g?"rgba(251,191,36,0.2)":"rgba(255,255,255,0.04)", border:`1px solid ${activeGroup===g?"#fbbf24":"rgba(255,255,255,0.1)"}`, borderRadius:6, color:activeGroup===g?"#fbbf24":"#94a3b8", padding:"5px 12px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:16 }}>
+                          {g}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ fontFamily:"Barlow", fontSize:12, color:"#475569", marginBottom:12 }}>
+                      Group {activeGroup}: {WC_GROUPS[activeGroup].join(" · ")}
+                    </div>
+                    {groupMatches.map(m => <MatchCard key={m.id} match={m} myPred={myPreds[m.id]} result={results[m.id]} onPredict={myId&&!effectiveLocked&&!isViewingOther?savePrediction:null} stage="group" locked={effectiveLocked||isViewingOther} />)}
+
+                    {/* Predicted standings */}
+                    {(() => {
+                      // Build a results map from this user's predictions for this group
+                      const predResults = {};
+                      groupMatches.forEach(m => {
+                        const p = myPreds[m.id];
+                        if (p && p.home_score != null) predResults[m.id] = { home_score: p.home_score, away_score: p.away_score };
+                      });
+                      const anyPreds = Object.keys(predResults).length > 0;
+                      const standings = calcGroupStandings(activeGroup, predResults);
+                      return (
+                        <div style={{ marginTop:20 }}>
+                          <div style={{ fontFamily:"Barlow", fontSize:11, fontWeight:700, letterSpacing:2, color:"#fbbf24", textTransform:"uppercase", marginBottom:10 }}>
+                            {anyPreds ? "Your Predicted Standings" : "Standings (predict scores above)"}
+                          </div>
+                          <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:8, overflow:"hidden" }}>
+                            {/* header */}
+                            <div style={{ display:"grid", gridTemplateColumns:"24px 1fr 28px 28px 28px 34px 30px", gap:4, padding:"8px 10px", borderBottom:"1px solid rgba(255,255,255,0.08)", fontFamily:"Barlow", fontSize:10, color:"#475569", letterSpacing:1 }}>
+                              <div></div><div>TEAM</div><div style={{ textAlign:"center" }}>W</div><div style={{ textAlign:"center" }}>D</div><div style={{ textAlign:"center" }}>L</div><div style={{ textAlign:"center" }}>GD</div><div style={{ textAlign:"center" }}>PTS</div>
+                            </div>
+                            {standings.map((t, i) => {
+                              const qualifies = i < 2;
+                              const thirdPlace = i === 2;
+                              return (
+                                <div key={t.name} style={{ display:"grid", gridTemplateColumns:"24px 1fr 28px 28px 28px 34px 30px", gap:4, padding:"9px 10px", alignItems:"center",
+                                  borderBottom: i<3 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                                  background: qualifies?"rgba(74,222,128,0.06)":thirdPlace?"rgba(251,191,36,0.05)":"transparent" }}>
+                                  <div style={{ fontFamily:"Bebas Neue", fontSize:15, color: qualifies?"#4ade80":thirdPlace?"#fbbf24":"#475569", textAlign:"center" }}>{i+1}</div>
+                                  <div style={{ fontFamily:"Barlow", fontSize:13, fontWeight:600, color:"#e2e8f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.name}</div>
+                                  <div style={{ fontFamily:"Barlow", fontSize:13, color:"#94a3b8", textAlign:"center" }}>{t.w}</div>
+                                  <div style={{ fontFamily:"Barlow", fontSize:13, color:"#94a3b8", textAlign:"center" }}>{t.d}</div>
+                                  <div style={{ fontFamily:"Barlow", fontSize:13, color:"#94a3b8", textAlign:"center" }}>{t.l}</div>
+                                  <div style={{ fontFamily:"Barlow", fontSize:13, color:"#94a3b8", textAlign:"center" }}>{t.gd>0?"+":""}{t.gd}</div>
+                                  <div style={{ fontFamily:"Bebas Neue", fontSize:18, color:"#fff", textAlign:"center" }}>{t.pts}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div style={{ display:"flex", gap:16, marginTop:8, fontFamily:"Barlow", fontSize:10, color:"#475569" }}>
+                            <span><span style={{ color:"#4ade80" }}>●</span> Advance (top 2)</span>
+                            <span><span style={{ color:"#fbbf24" }}>●</span> 3rd (may advance)</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* Horizontal knockout bracket */}
+                {activeStage === "knockout" && (
+                  <KnockoutBracket
+                    myPreds={myPreds} results={results}
+                    onPredict={myId&&!effectiveLocked&&!isViewingOther?saveKnockoutPick:null}
+                    locked={effectiveLocked||isViewingOther}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* DAILY SUMMARY */}
+            {wcView === "daily" && (
+              <DailySummary apiMatches={apiMatches} results={results} predictions={predictions} participants={participants} leaderboard={leaderboard} calcPoints={calcPoints} />
+            )}
+
+            {/* LEADERBOARD */}
+            {wcView === "leaderboard" && (
+              <div>
+                <div className="section-title">Bracket Leaderboard</div>
+                {loading ? <Loading /> : leaderboard.length === 0 ? (
+                  <div style={{ fontFamily:"Barlow", color:"#475569", fontSize:14 }}>No participants yet.</div>
+                ) : leaderboard.map((p,i) => (
+                  <div key={p.id} onClick={() => { setViewingId(p.id); setWcView("bracket"); setActiveStage("group"); }}
+                    style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 16px", borderRadius:8, marginBottom:6, cursor:"pointer",
+                    background:p.id===myId?"rgba(251,191,36,0.08)":"rgba(255,255,255,0.03)",
+                    border:`1px solid ${p.id===myId?"rgba(251,191,36,0.3)":"rgba(255,255,255,0.06)"}` }}>
+                    <div style={{ fontFamily:"Bebas Neue", fontSize:20, color:i<3?["#fbbf24","#94a3b8","#b45309"][i]:"#334155", minWidth:24, textAlign:"center" }}>{i+1}</div>
+                    <div style={{ flex:1, fontFamily:"Barlow", fontSize:15, fontWeight:600, color:"#e2e8f0" }}>{p.name}{p.id===myId?" (you)":""} <span style={{ fontSize:11, color:"#475569" }}>👁</span></div>
+                    <div style={{ fontFamily:"Bebas Neue", fontSize:28, color:"#fbbf24" }}>{p.points}</div>
+                    <div style={{ fontFamily:"Barlow", fontSize:11, color:"#475569" }}>pts</div>
+                    {isEditor && (
+                      <button onClick={(e) => { e.stopPropagation(); deleteParticipant(p.id, p.name); }}
+                        style={{ background:"none", border:"1px solid rgba(248,113,113,0.3)", borderRadius:5, color:"#f87171", padding:"4px 8px", cursor:"pointer", fontFamily:"Barlow", fontSize:12 }}>✕</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ADMIN - enter real results */}
+            {wcView === "admin" && isEditor && (
+              <div>
+                <div className="section-title">Enter Real Results</div>
+                <div style={{ display:"flex", gap:8, marginBottom:16, overflowX:"auto" }}>
+                  {[{key:"group",label:"Groups"},{key:"R32",label:"R32"},{key:"R16",label:"R16"},{key:"QF",label:"QF"},{key:"SF",label:"SF"},{key:"F",label:"Final"}].map(s => (
+                    <button key={s.key} onClick={() => setActiveStage(s.key)}
+                      style={{ background:activeStage===s.key?"rgba(248,113,113,0.2)":"rgba(255,255,255,0.04)", border:`1px solid ${activeStage===s.key?"#f87171":"rgba(255,255,255,0.1)"}`, borderRadius:6, color:activeStage===s.key?"#f87171":"#64748b", padding:"6px 14px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:16, whiteSpace:"nowrap" }}>
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+                {activeStage === "group" && (
+                  <div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:16 }}>
+                      {Object.keys(WC_GROUPS).map(g => (
+                        <button key={g} onClick={() => setActiveGroup(g)}
+                          style={{ background:activeGroup===g?"rgba(248,113,113,0.2)":"rgba(255,255,255,0.04)", border:`1px solid ${activeGroup===g?"#f87171":"rgba(255,255,255,0.1)"}`, borderRadius:6, color:activeGroup===g?"#f87171":"#94a3b8", padding:"5px 12px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:16 }}>
+                          {g}
+                        </button>
+                      ))}
+                    </div>
+                    {groupMatches.map(m => <AdminMatchCard key={m.id} match={m} result={results[m.id]} onSave={saveResult} />)}
+                  </div>
+                )}
+                {activeStage !== "group" && KNOCKOUT_MATCHES.filter(m=>m.stage===activeStage).map(m => (
+                  <AdminMatchCard key={m.id} match={m} result={results[m.id]} onSave={saveResult} label={m.label} />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // Resolve who plays in a knockout match based on picks and group results
+    function resolveKnockoutTeams(matchId, preds, groupResults, koResults) {
+      const match = KNOCKOUT_MATCHES.find(m => m.id === matchId);
+      if (!match) return { home: "TBD", away: "TBD" };
+
+      if (match.stage === "R32") {
+        return {
+          home: resolveSlot(match.home, groupResults, match.id),
+          away: resolveSlot(match.away, groupResults, match.id),
+        };
+      }
+
+      const getWinner = (feedId) => {
+        const res = koResults[feedId];
+        const pred = preds[feedId];
+        const teams = resolveKnockoutTeams(feedId, preds, groupResults, koResults);
+        if (res?.home_score != null) {
+          return res.home_score > res.away_score ? teams.home : teams.away;
+        }
+        if (pred?.home_score != null) {
+          return pred.home_score > pred.away_score ? teams.home : teams.away;
+        }
+        return "TBD";
+      };
+
+      return {
+        home: getWinner(match.feedHome),
+        away: getWinner(match.feedAway),
+      };
+    }
+
+    function DailySummary({ apiMatches, results, predictions, participants, leaderboard, calcPoints }) {
+      // Helpers to map API match to our match id + names
+      const normName = (s) => (s||"").toLowerCase().replace(/[^a-z]/g,"");
+      const findOurMatch = (apiMatch) => {
+        const h = normName(apiMatch.homeTeam?.name), a = normName(apiMatch.awayTeam?.name);
+        return GROUP_MATCHES.find(m => {
+          const mh = normName(m.home), ma = normName(m.away);
+          return (mh.includes(h)||h.includes(mh)||mh===h) && (ma.includes(a)||a.includes(ma)||ma===a);
+        });
+      };
+
+      const now = new Date();
+      const todayStr = now.toDateString();
+      const yesterday = new Date(now); yesterday.setDate(yesterday.getDate()-1);
+      const yestStr = yesterday.toDateString();
+
+      const todays = [], yesterdays = [];
+      (apiMatches||[]).forEach(am => {
+        if (!am.utcDate) return;
+        const d = new Date(am.utcDate);
+        const ds = d.toDateString();
+        const entry = {
+          home: am.homeTeam?.name || "TBD",
+          away: am.awayTeam?.name || "TBD",
+          time: d.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}),
+          status: am.status,
+          hs: am.score?.fullTime?.home,
+          as: am.score?.fullTime?.away,
+        };
+        if (ds === todayStr) todays.push(entry);
+        else if (ds === yestStr) yesterdays.push(entry);
+      });
+
+      // Yesterday's prediction analysis: for each finished game yesterday, how many got it right
+      const yestAnalysis = yesterdays.filter(g => g.hs != null).map(g => {
+        // find our match id
+        const apiM = (apiMatches||[]).find(am => am.homeTeam?.name===g.home && am.awayTeam?.name===g.away);
+        const our = apiM ? findOurMatch(apiM) : null;
+        let correct = 0, exact = 0, total = 0;
+        if (our) {
+          participants.forEach(p => {
+            const pred = predictions[p.id]?.[our.id];
+            if (!pred || pred.home_score == null) return;
+            total++;
+            const pw = pred.home_score>pred.away_score?"h":pred.home_score<pred.away_score?"d":"a";
+            const rw = g.hs>g.as?"h":g.hs<g.as?"d":"a";
+            if (pw===rw) correct++;
+            if (pred.home_score===g.hs && pred.away_score===g.as) exact++;
+          });
+        }
+        return { ...g, correct, exact, total };
+      });
+
+      const sectionTitle = { fontFamily:"Barlow", fontSize:11, fontWeight:700, letterSpacing:2, color:"#fbbf24", textTransform:"uppercase", marginBottom:10, marginTop:24 };
+      const card = { background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:8, padding:"12px 14px", marginBottom:8 };
+
+      const leader = leaderboard[0];
+      const dateLabel = now.toLocaleDateString([], {weekday:"long", month:"long", day:"numeric"});
+
+      return (
+        <div>
+          <div style={{ fontFamily:"Bebas Neue", fontSize:26, color:"#fbbf24", letterSpacing:2 }}>📅 DAILY REPORT</div>
+          <div style={{ fontFamily:"Barlow", fontSize:13, color:"#94a3b8", marginBottom:8 }}>{dateLabel}</div>
+
+          {/* Today's games */}
+          <div style={sectionTitle}>⚽ Today's Matches</div>
+          {todays.length === 0 ? (
+            <div style={{ fontFamily:"Barlow", fontSize:13, color:"#475569" }}>No World Cup matches scheduled today.</div>
+          ) : todays.map((g,i) => (
+            <div key={i} style={card}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div style={{ fontFamily:"Barlow", fontSize:14, fontWeight:600, color:"#e2e8f0" }}>{g.home} vs {g.away}</div>
+                <div style={{ fontFamily:"Bebas Neue", fontSize:16, color:"#4db8ff" }}>
+                  {g.status==="FINISHED" ? `${g.hs}-${g.as}` : g.status==="IN_PLAY"||g.status==="PAUSED" ? "LIVE" : g.time}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* Yesterday's recap */}
+          <div style={sectionTitle}>📊 Yesterday's Results</div>
+          {yestAnalysis.length === 0 ? (
+            <div style={{ fontFamily:"Barlow", fontSize:13, color:"#475569" }}>No completed matches yesterday.</div>
+          ) : yestAnalysis.map((g,i) => (
+            <div key={i} style={card}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: g.total>0?6:0 }}>
+                <div style={{ fontFamily:"Barlow", fontSize:14, fontWeight:600, color:"#e2e8f0" }}>{g.home} {g.hs}-{g.as} {g.away}</div>
+              </div>
+              {g.total > 0 && (
+                <div style={{ fontFamily:"Barlow", fontSize:12, color:"#94a3b8" }}>
+                  <span style={{ color:"#4ade80" }}>{g.correct}/{g.total}</span> picked the result right
+                  {g.exact > 0 && <span style={{ color:"#fbbf24" }}> · {g.exact} nailed the exact score 🎯</span>}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Leaderboard status */}
+          <div style={sectionTitle}>🏆 Leaderboard</div>
+          {leader ? (
+            <div>
+              <div style={{ ...card, background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.25)" }}>
+                <div style={{ fontFamily:"Barlow", fontSize:13, color:"#fbbf24" }}>
+                  👑 <strong>{leader.name}</strong> leads with <strong>{leader.points} pts</strong>
+                </div>
+              </div>
+              {leaderboard.slice(0,5).map((p,i) => (
+                <div key={p.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", borderRadius:8, marginBottom:5, background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ fontFamily:"Bebas Neue", fontSize:18, color:i<3?["#fbbf24","#94a3b8","#b45309"][i]:"#334155", minWidth:20, textAlign:"center" }}>{i+1}</div>
+                  <div style={{ flex:1, fontFamily:"Barlow", fontSize:14, fontWeight:600, color:"#e2e8f0" }}>{p.name}</div>
+                  <div style={{ fontFamily:"Bebas Neue", fontSize:20, color:"#fbbf24" }}>{p.points}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontFamily:"Barlow", fontSize:13, color:"#475569" }}>No participants yet.</div>
+          )}
+        </div>
+      );
+    }
+
+    function KnockoutBracket({ myPreds, results, onPredict, locked }) {
+      const stages = [
+        { key:"R32", label:"Round of 32", matches: KNOCKOUT_MATCHES.filter(m=>m.stage==="R32") },
+        { key:"R16", label:"Round of 16", matches: KNOCKOUT_MATCHES.filter(m=>m.stage==="R16") },
+        { key:"QF",  label:"Quarter Finals", matches: KNOCKOUT_MATCHES.filter(m=>m.stage==="QF") },
+        { key:"SF",  label:"Semi Finals", matches: KNOCKOUT_MATCHES.filter(m=>m.stage==="SF") },
+        { key:"F",   label:"🏆 Final", matches: KNOCKOUT_MATCHES.filter(m=>m.stage==="F") },
+      ];
+
+      // Build group results purely from THIS person's predictions.
+      // Real results are never used to change the displayed bracket — they only
+      // affect points (handled separately in calcPoints). Each person's bracket
+      // always reflects exactly what they predicted.
+      const groupResults = {};
+      GROUP_MATCHES.forEach(m => {
+        const pred = myPreds[m.id];
+        if (pred?.home_score != null) groupResults[m.id] = pred;
+      });
+
+      return (
+        <div>
+          <div style={{ fontFamily:"Barlow", fontSize:12, color:"#475569", marginBottom:12 }}>
+            Scroll → to see all rounds · Tap team to pick winner
+          </div>
+          <div style={{ overflowX:"auto", paddingBottom:12 }}>
+            <div style={{ display:"flex", gap:8, minWidth: stages.length * 165 }}>
+              {stages.map((stage) => (
+                <div key={stage.key} style={{ flex:1, minWidth:155, display:"flex", flexDirection:"column" }}>
+                  <div style={{ fontFamily:"Bebas Neue", fontSize:12, color:"#fbbf24", letterSpacing:1, textAlign:"center", padding:"0 4px 8px", borderBottom:"1px solid rgba(251,191,36,0.15)", marginBottom:8 }}>
+                    {stage.label}
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:6, padding:"0 2px" }}>
+                    {stage.matches.map(m => {
+                      // Resolve teams purely from this person's own predictions
+                      // (group predictions + their knockout winner picks). Real
+                      // results never change the displayed bracket.
+                      const teams = resolveKnockoutTeams(m.id, myPreds, groupResults, myPreds);
+                      const homeName = teams.home;
+                      const awayName = teams.away;
+                      const isTBD = homeName==="TBD" || awayName==="TBD";
+
+                      const pred = myPreds[m.id];
+                      const result = results[m.id];
+                      const myWinner = pred ? (pred.home_score > pred.away_score ? "home" : "away") : null;
+                      const actualWinner = result?.home_score != null ? (result.home_score > result.away_score ? "home" : "away") : null;
+                      const correct = myWinner && actualWinner && myWinner === actualWinner;
+
+                      return (
+                        <div key={m.id} style={{ background:"rgba(255,255,255,0.04)", border:`1px solid ${correct?"rgba(74,222,128,0.3)":pred?"rgba(251,191,36,0.2)":"rgba(255,255,255,0.08)"}`, borderRadius:8, overflow:"hidden" }}>
+                          {[{name:homeName,side:"home"},{name:awayName,side:"away"}].map(({name,side},idx) => {
+                            const isMyPick = myWinner===side;
+                            const isWinner = actualWinner===side;
+                            const score = side==="home" ? result?.home_score : result?.away_score;
+                            return (
+                              <div key={side}
+                                onClick={() => onPredict && !isTBD && onPredict(m.id, side)}
+                                style={{
+                                  padding:"7px 8px",
+                                  cursor: onPredict && !isTBD ? "pointer" : "default",
+                                  background: isMyPick ? (actualWinner ? (correct?"rgba(74,222,128,0.2)":"rgba(248,113,113,0.15)") : "rgba(251,191,36,0.15)") : "transparent",
+                                  borderBottom: idx===0 ? "1px solid rgba(255,255,255,0.06)" : "none",
+                                  display:"flex", justifyContent:"space-between", alignItems:"center",
+                                  transition:"background 0.15s",
+                                }}>
+                                <span style={{ fontFamily:"Barlow", fontSize:11, fontWeight:600, color:isTBD||name.includes("1st")||name.includes("2nd")||name.includes("3rd")?"#475569":"#e2e8f0", flex:1, lineHeight:1.2 }}>{name}</span>
+                                <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+                                  {score != null && <span style={{ fontFamily:"Bebas Neue", fontSize:13, color:isWinner?"#4ade80":"#64748b" }}>{score}</span>}
+                                  {isMyPick && !actualWinner && <span style={{ fontSize:9, color:"#fbbf24" }}>●</span>}
+                                  {isMyPick && correct && <span style={{ fontSize:9, color:"#4ade80" }}>✓</span>}
+                                  {isMyPick && actualWinner && !correct && <span style={{ fontSize:9, color:"#f87171" }}>✗</span>}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function MatchCard({ match, myPred, result, onPredict, stage, label, locked }) {
+      const [hs, setHs] = useState(myPred?.home_score ?? "");
+      const [as_, setAs] = useState(myPred?.away_score ?? "");
+      const hasResult = result?.home_score != null;
+      const hasPred = myPred?.home_score != null;
+
+      const predCorrect = hasPred && hasResult && (() => {
+        if (stage === "group") {
+          const pw = myPred.home_score > myPred.away_score?"home":myPred.home_score<myPred.away_score?"away":"draw";
+          const rw = result.home_score > result.away_score?"home":result.home_score<result.away_score?"away":"draw";
+          return pw === rw;
+        } else {
+          const pw = myPred.home_score > myPred.away_score?"home":"away";
+          const rw = result.home_score > result.away_score?"home":"away";
+          return pw === rw;
+        }
+      })();
+      const exactScore = hasPred && hasResult && myPred.home_score===result.home_score && myPred.away_score===result.away_score;
+
+      const borderColor = hasResult ? (predCorrect ? "rgba(74,222,128,0.3)" : "rgba(248,113,113,0.2)") : hasPred ? "rgba(251,191,36,0.25)" : "rgba(255,255,255,0.06)";
+
+      return (
+        <div style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${borderColor}`, borderRadius:8, padding:"10px 12px", marginBottom:6 }}>
+          {label && <div style={{ fontFamily:"Barlow", fontSize:10, color:"#475569", marginBottom:4 }}>{label}</div>}
+          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+            {/* Home team */}
+            <div style={{ flex:1, fontFamily:"Barlow", fontSize:13, fontWeight:600, color:"#e2e8f0", textAlign:"right", lineHeight:1.2 }}>{match.home}</div>
+
+            {/* Score area */}
+            <div style={{ display:"flex", alignItems:"center", gap:4, flexShrink:0 }}>
+              {hasResult ? (
+                <>
+                  <span style={{ fontFamily:"Bebas Neue", fontSize:20, color:predCorrect?"#4ade80":"#f87171", minWidth:18, textAlign:"center" }}>{result.home_score}</span>
+                  <span style={{ fontFamily:"Bebas Neue", fontSize:14, color:"#475569" }}>-</span>
+                  <span style={{ fontFamily:"Bebas Neue", fontSize:20, color:predCorrect?"#4ade80":"#f87171", minWidth:18, textAlign:"center" }}>{result.away_score}</span>
+                </>
+              ) : onPredict ? (
+                <>
+                  <input type="number" min="0" max="20" value={hs}
+                    onChange={e=>{ const v=e.target.value; setHs(v); if(v!==""&&as_!=="") onPredict(match.id, Number(v), Number(as_)); }}
+                    onBlur={() => hs!==""&&as_!==""&&onPredict(match.id, Number(hs), Number(as_))}
+                    style={{ width:36, textAlign:"center", fontFamily:"Bebas Neue", fontSize:18, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(251,191,36,0.4)", borderRadius:5, color:"#fbbf24", padding:"4px 2px", outline:"none", MozAppearance:"textfield" }} />
+                  <span style={{ fontFamily:"Bebas Neue", fontSize:14, color:"#475569" }}>-</span>
+                  <input type="number" min="0" max="20" value={as_}
+                    onChange={e=>{ const v=e.target.value; setAs(v); if(hs!==""&&v!=="") onPredict(match.id, Number(hs), Number(v)); }}
+                    onBlur={() => hs!==""&&as_!==""&&onPredict(match.id, Number(hs), Number(as_))}
+                    style={{ width:36, textAlign:"center", fontFamily:"Bebas Neue", fontSize:18, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(251,191,36,0.4)", borderRadius:5, color:"#fbbf24", padding:"4px 2px", outline:"none", MozAppearance:"textfield" }} />
+                </>
+              ) : (
+                <>
+                  <span style={{ fontFamily:"Bebas Neue", fontSize:18, color:hasPred?"#fbbf24":"#334155", minWidth:18, textAlign:"center" }}>{hasPred?myPred.home_score:"?"}</span>
+                  <span style={{ fontFamily:"Bebas Neue", fontSize:14, color:"#334155" }}>-</span>
+                  <span style={{ fontFamily:"Bebas Neue", fontSize:18, color:hasPred?"#fbbf24":"#334155", minWidth:18, textAlign:"center" }}>{hasPred?myPred.away_score:"?"}</span>
+                </>
+              )}
+            </div>
+
+            {/* Away team */}
+            <div style={{ flex:1, fontFamily:"Barlow", fontSize:13, fontWeight:600, color:"#e2e8f0", lineHeight:1.2 }}>{match.away}</div>
+
+            {/* Status indicator */}
+            <div style={{ flexShrink:0, width:20, textAlign:"center" }}>
+              {exactScore ? <span style={{ fontSize:12 }}>🎯</span>
+               : predCorrect ? <span style={{ fontSize:12, color:"#4ade80" }}>✓</span>
+               : hasResult && hasPred ? <span style={{ fontSize:12, color:"#f87171" }}>✗</span>
+               : hasPred ? <span style={{ fontSize:10, color:"#fbbf24" }}>●</span>
+               : locked ? <span style={{ fontSize:10 }}>🔒</span>
+               : null}
+            </div>
+          </div>
+
+          {/* My prediction shown below if result is in */}
+          {hasPred && hasResult && (
+            <div style={{ fontFamily:"Barlow", fontSize:10, color:"#475569", marginTop:4, textAlign:"center" }}>
+              Your pick: <span style={{ color:"#fbbf24" }}>{myPred.home_score}–{myPred.away_score}</span>
+              {predCorrect && <span style={{ color:"#4ade80", marginLeft:4 }}>+2pts</span>}
+              {exactScore && <span style={{ color:"#fbbf24", marginLeft:4 }}>+1pt exact!</span>}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function AdminMatchCard({ match, result, onSave, label }) {
+      const [hs, setHs] = useState(result?.home_score ?? "");
+      const [as_, setAs] = useState(result?.away_score ?? "");
+      return (
+        <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(248,113,113,0.15)", borderRadius:8, padding:"14px 16px", marginBottom:8 }}>
+          {label && <div style={{ fontFamily:"Barlow", fontSize:11, color:"#475569", marginBottom:6 }}>{label}</div>}
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ flex:1, fontFamily:"Barlow", fontSize:14, fontWeight:600, color:"#e2e8f0" }}>{match.home}</div>
+            <input type="number" min="0" value={hs} onChange={e=>setHs(e.target.value)}
+              style={{ width:48, textAlign:"center", fontFamily:"Bebas Neue", fontSize:22, background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.3)", borderRadius:6, color:"#f87171", padding:"5px", outline:"none" }} />
+            <span style={{ fontFamily:"Bebas Neue", color:"#475569" }}>–</span>
+            <input type="number" min="0" value={as_} onChange={e=>setAs(e.target.value)}
+              style={{ width:48, textAlign:"center", fontFamily:"Bebas Neue", fontSize:22, background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.3)", borderRadius:6, color:"#f87171", padding:"5px", outline:"none" }} />
+            <div style={{ flex:1, fontFamily:"Barlow", fontSize:14, fontWeight:600, color:"#e2e8f0", textAlign:"right" }}>{match.away}</div>
+            <button onClick={() => hs!==""&&as_!==""&&onSave(match.id, Number(hs), Number(as_))}
+              style={{ background:"rgba(248,113,113,0.15)", border:"1px solid #f87171", borderRadius:6, color:"#f87171", padding:"6px 12px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:14 }}>SAVE</button>
+          </div>
+          {result?.home_score!=null && <div style={{ fontFamily:"Barlow", fontSize:11, color:"#4ade80", marginTop:6 }}>✓ Result saved: {result.home_score}–{result.away_score}</div>}
+        </div>
+      );
+    }
+
+    function SummaryView({ games, gameStats, playerStats, players, team, rec, getGS }) {
+      const [now, setNow] = useState(new Date());
+      useEffect(() => {
+        const interval = setInterval(() => setNow(new Date()), 60000);
+        return () => clearInterval(interval);
+      }, []);
+
+      const parseGameDate = (g) => {
+        try {
+          const d = new Date(`${g.date} 2026 ${g.time}`);
+          return isNaN(d) ? null : d;
+        } catch { return null; }
+      };
+
+      const gamesWithDates = games.map(g => ({ ...g, parsedDate: parseGameDate(g) }))
+        .filter(g => g.parsedDate)
+        .sort((a,b) => a.parsedDate - b.parsedDate);
+
+      const upcoming = gamesWithDates.filter(g => g.parsedDate > now);
+      const past = gamesWithDates.filter(g => g.parsedDate <= now);
+      const nextGame = upcoming[0];
+
+      let countdown = null;
+      if (nextGame) {
+        const diff = nextGame.parsedDate - now;
+        if (diff > 0) {
+          countdown = {
+            days: Math.floor(diff / (1000*60*60*24)),
+            hours: Math.floor((diff % (1000*60*60*24)) / (1000*60*60)),
+            mins: Math.floor((diff % (1000*60*60)) / (1000*60)),
+          };
+        }
+      }
+
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+      const reminders = gamesWithDates.filter(g => {
+        const gd = new Date(g.parsedDate.getFullYear(), g.parsedDate.getMonth(), g.parsedDate.getDate());
+        return gd.getTime() === tomorrow.getTime();
+      });
+
+      const recentPast = [...past].reverse().slice(0, 3);
+      const opp2 = (g) => g.home === team.name ? g.away : g.home;
+      const isHome2 = (g) => g.home === team.name;
+
+      const makeIcs = (g) => {
+        try {
+          const start = new Date(`${g.date} 2026 ${g.time}`);
+          const end = new Date(start.getTime() + 90*60*1000);
+          const fmt = (d) => d.toISOString().replace(/-|:|\.\d+/g,"").slice(0,15)+"Z";
+          const ics = ["BEGIN:VCALENDAR","VERSION:2.0","BEGIN:VEVENT",
+            `DTSTART:${fmt(start)}`,`DTEND:${fmt(end)}`,
+            `SUMMARY:${team.name} vs ${opp2(g)}`,
+            `LOCATION:Field ${g.field}`,
+            `DESCRIPTION:${isHome2(g)?"Home":"Away"} game vs ${opp2(g)}`,
+            "BEGIN:VALARM","TRIGGER:-P1D","ACTION:DISPLAY","DESCRIPTION:Game tomorrow!","END:VALARM",
+            "END:VEVENT","END:VCALENDAR"].join("\r\n");
+          const blob = new Blob([ics],{type:"text/calendar;charset=utf-8"});
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href=url; a.download="game.ics"; a.click();
+          URL.revokeObjectURL(url);
+        } catch(e) { alert("Couldn't create event."); }
+      };
+
+      return (
+        <div>
+          {/* Reminder banner */}
+          {reminders.length > 0 && (
+            <div style={{ background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.4)", borderRadius:10, padding:"14px 18px", marginBottom:20 }}>
+              <div style={{ fontFamily:"Bebas Neue", fontSize:20, color:"#fbbf24", letterSpacing:2, marginBottom:6 }}>🔔 GAME TOMORROW!</div>
+              {reminders.map(g => (
+                <div key={g.id} style={{ fontFamily:"Barlow", fontSize:14, color:"#e2e8f0" }}>
+                  vs <strong>{opp2(g)}</strong> · {isHome2(g)?"Home":"Away"} · {g.time} · Field {g.field}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Next game countdown */}
+          {nextGame && countdown && (
+            <div style={{ background:"rgba(77,184,255,0.07)", border:"1px solid rgba(77,184,255,0.2)", borderRadius:10, padding:"20px", marginBottom:20 }}>
+              <div className="section-title" style={{ marginBottom:8 }}>Next Game</div>
+              <div style={{ fontFamily:"Barlow", fontSize:16, fontWeight:600, color:"#7dd3fc", marginBottom:4 }}>
+                vs {opp2(nextGame)} · {isHome2(nextGame)?"Home":"Away"}
+              </div>
+              <div style={{ fontFamily:"Barlow", fontSize:13, color:"#64748b", marginBottom:16 }}>
+                {nextGame.date} · {nextGame.time} · Field {nextGame.field}
+              </div>
+              <div style={{ display:"flex", gap:10, marginBottom:16 }}>
+                {[{val:countdown.days,label:"DAYS"},{val:countdown.hours,label:"HRS"},{val:countdown.mins,label:"MIN"}].map(({val,label}) => (
+                  <div key={label} style={{ flex:1, background:"rgba(0,0,0,0.2)", borderRadius:8, padding:"14px 8px", textAlign:"center", border:"1px solid rgba(77,184,255,0.15)" }}>
+                    <div style={{ fontFamily:"Bebas Neue", fontSize:40, color:"#4db8ff", lineHeight:1 }}>{val}</div>
+                    <div style={{ fontFamily:"Barlow", fontSize:11, color:"#475569", letterSpacing:2, marginTop:4 }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => makeIcs(nextGame)} style={{ width:"100%", background:"rgba(77,184,255,0.15)", border:"1px solid #4db8ff", borderRadius:8, color:"#4db8ff", padding:"12px", cursor:"pointer", fontFamily:"Bebas Neue", fontSize:18, letterSpacing:2 }}>
+                📅 ADD TO CALENDAR
+              </button>
+            </div>
+          )}
+
+          {/* Top Players */}
+          {players.length > 0 && (
+            <div style={{ marginBottom:20 }}>
+              <div className="section-title">Top Players</div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
+                {[
+                  { label:"⚽ Top Scorer", key:"goals", color:"#4db8ff" },
+                  { label:"🎯 Top Assist", key:"assists", color:"#34d399" },
+                  { label:"⭐ Most MVP", key:"mvps", color:"#fbbf24" },
+                ].map(({ label, key, color }) => {
+                  const stats = players.map(p => {
+                    let goals=0, assists=0, mvps=0;
+                    Object.entries(playerStats || {}).forEach(([gid, gps]) => {
+                      const ps = gps[p.id];
+                      if (ps) { goals+=ps.goals||0; assists+=ps.assists||0; }
+                    });
+                    Object.values(gameStats || {}).forEach(gs => { if(gs.mvp===p.id) mvps++; });
+                    return { ...p, goals, assists, mvps };
+                  });
+                  const top = stats.sort((a,b) => b[key]-a[key])[0];
+                  const val = top?.[key] || 0;
+                  return (
+                    <div key={key} style={{ background:"rgba(255,255,255,0.03)", border:`1px solid ${color}33`, borderRadius:10, padding:"14px 10px", textAlign:"center" }}>
+                      <div style={{ fontFamily:"Barlow", fontSize:10, color:"#475569", letterSpacing:1, marginBottom:8 }}>{label}</div>
+                      <div style={{ fontFamily:"Bebas Neue", fontSize:28, color, lineHeight:1, marginBottom:4 }}>{val}</div>
+                      <div style={{ fontFamily:"Barlow", fontSize:12, fontWeight:600, color:"#e2e8f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                        {val > 0 ? (top?.number ? `#${top.number} ` : "") + top?.name : "—"}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Season record */}
+          <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:10, padding:"16px 20px", marginBottom:20 }}>
+            <div className="section-title" style={{ marginBottom:12 }}>Season Record</div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, textAlign:"center" }}>
+              {[{val:rec.wins,label:"WINS",color:"#4ade80"},{val:rec.losses,label:"LOSSES",color:"#f87171"},{val:rec.draws,label:"DRAWS",color:"#facc15"},{val:rec.cleanSheets,label:"CLEAN SH.",color:"#4db8ff"}].map(({val,label,color}) => (
+                <div key={label} style={{ background:"rgba(0,0,0,0.15)", borderRadius:8, padding:"12px 6px", border:`1px solid ${color}22` }}>
+                  <div style={{ fontFamily:"Bebas Neue", fontSize:34, color, lineHeight:1 }}>{val}</div>
+                  <div style={{ fontFamily:"Barlow", fontSize:10, color:"#475569", letterSpacing:1, marginTop:4 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Recent results */}
+          {recentPast.length > 0 && (
+            <div style={{ marginBottom:20 }}>
+              <div className="section-title">Recent Results</div>
+              {recentPast.map(g => {
+                const gs = getGS(g.id);
+                const played = gs.score_us !== "" && gs.score_them !== "";
+                const us = Number(gs.score_us), them = Number(gs.score_them);
+                const result = played ? (us>them?"W":us<them?"L":"D") : null;
+                const mvpPlayer = gs.mvp ? players.find(p=>p.id===gs.mvp) : null;
+                return (
+                  <div key={g.id} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:8, padding:"14px 16px", marginBottom:8, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                    <div>
+                      <div style={{ fontFamily:"Barlow", fontSize:11, color:"#475569", marginBottom:3 }}>{g.date} · {isHome2(g)?"HOME":"AWAY"}</div>
+                      <div style={{ fontFamily:"Barlow", fontSize:15, fontWeight:600, color:"#e2e8f0" }}>vs {opp2(g)}</div>
+                      {mvpPlayer && <div style={{ fontFamily:"Barlow", fontSize:11, color:"#fbbf24", marginTop:2 }}>⭐ {mvpPlayer.name}</div>}
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                      {played && <div style={{ fontFamily:"Bebas Neue", fontSize:28, color:"#fff" }}>{gs.score_us}–{gs.score_them}</div>}
+                      {result && (
+                        <div style={{ width:32, height:32, borderRadius:6, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"Bebas Neue", fontSize:18,
+                          background:result==="W"?"rgba(74,222,128,0.15)":result==="L"?"rgba(248,113,113,0.15)":"rgba(250,204,21,0.15)",
+                          color:result==="W"?"#4ade80":result==="L"?"#f87171":"#facc15" }}>{result}</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Upcoming games */}
+          {upcoming.length > 0 && (
+            <div>
+              <div className="section-title">Upcoming Games</div>
+              {upcoming.slice(0,5).map(g => (
+                <div key={g.id} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:8, padding:"12px 16px", marginBottom:8 }}>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                    <div>
+                      <div style={{ fontFamily:"Barlow", fontSize:11, color:"#475569", marginBottom:2 }}>{g.date} · {isHome2(g)?"HOME":"AWAY"} · Field {g.field}</div>
+                      <div style={{ fontFamily:"Barlow", fontSize:15, fontWeight:600, color:"#e2e8f0" }}>vs {opp2(g)}</div>
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <div style={{ fontFamily:"Bebas Neue", fontSize:16, color:"#4db8ff" }}>{g.time}</div>
+                      <button onClick={() => makeIcs(g)} style={{ background:"rgba(77,184,255,0.1)", border:"1px solid rgba(77,184,255,0.3)", borderRadius:6, color:"#4db8ff", padding:"5px 8px", cursor:"pointer", fontFamily:"Barlow", fontSize:12 }}>📅</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function GameDetail({ game, teamName, opponent, gs, players, getPS, onUpdateGS, onBack, onUpdatePS, isEditor }) {
+      const [saving, setSaving] = useState({});
+
+      const handleGS = async (fields) => {
+        await onUpdateGS(fields);
+      };
+
+      const handlePS = async (playerId, field, value) => {
+        const key = `${playerId}-${field}`;
+        setSaving(prev => ({ ...prev, [key]: true }));
+        await onUpdatePS(playerId, { [field]: value });
+        setSaving(prev => ({ ...prev, [key]: false }));
+      };
+
+      return (
+        <div>
+          <button onClick={onBack} style={{ background:"none", border:"none", color:"#4db8ff", cursor:"pointer", fontFamily:"Barlow", fontSize:14, marginBottom:20, display:"flex", alignItems:"center", gap:6 }}>
+            ← Back to Schedule
+          </button>
+          <div style={{ background:"rgba(77,184,255,0.07)", border:"1px solid rgba(77,184,255,0.2)", borderRadius:10, padding:"20px", marginBottom:24 }}>
+            <div style={{ fontFamily:"Barlow", fontSize:12, color:"#64748b", letterSpacing:2, marginBottom:6 }}>
+              {game.day.toUpperCase()} {game.date} · {game.time} · Field {game.field}
+            </div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:16 }}>
+              <div style={{ fontFamily:"Bebas Neue", fontSize:26, color:"#4db8ff" }}>
+                {teamName.toUpperCase()} <span style={{ color:"#475569", fontSize:18 }}>vs</span> {opponent.toUpperCase()}
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                {isEditor ? (
+                  <>
+                    <input className="score-input" type="number" min="0" placeholder="0"
+                      defaultValue={gs.score_us}
+                      onBlur={e => handleGS({ score_us: e.target.value })} />
+                    <span style={{ fontFamily:"Bebas Neue", fontSize:28, color:"#475569" }}>–</span>
+                    <input className="score-input" type="number" min="0" placeholder="0"
+                      defaultValue={gs.score_them}
+                      onBlur={e => handleGS({ score_them: e.target.value })} />
+                  </>
+                ) : (
+                  <div style={{ fontFamily:"Bebas Neue", fontSize:36, color:"#fff" }}>
+                    {gs.score_us||"–"} <span style={{ color:"#475569" }}>:</span> {gs.score_them||"–"}
+                  </div>
+                )}
+              </div>
+            </div>
+            {isEditor && (
+            <div style={{ display:"flex", gap:20, marginTop:16, flexWrap:"wrap", alignItems:"center" }}>
+              <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", fontFamily:"Barlow", fontSize:14 }}>
+                <input type="checkbox" defaultChecked={gs.clean_sheet}
+                  onChange={e => handleGS({ clean_sheet: e.target.checked })}
+                  style={{ width:16, height:16, accentColor:"#4db8ff" }} />
+                <span style={{ color:"#94a3b8" }}>🧤 Team Clean Sheet</span>
+              </label>
+              <div style={{ display:"flex", alignItems:"center", gap:8, flex:1, minWidth:200 }}>
+                <span style={{ fontFamily:"Barlow", fontSize:14, color:"#fbbf24", whiteSpace:"nowrap" }}>⭐ MVP</span>
+                <select className="mvp-select" defaultValue={gs.mvp}
+                  onChange={e => handleGS({ mvp: e.target.value })}>
+                  <option value="">— Select MVP —</option>
+                  {players.map(p => <option key={p.id} value={p.id}>{p.number?`#${p.number} `:""}{p.name}</option>)}
+                </select>
+              </div>
+            </div>
+            )}
+            {!isEditor && gs.mvp && (
+              <div style={{ marginTop:12, fontFamily:"Barlow", fontSize:14, color:"#fbbf24" }}>
+                ⭐ MVP: {players.find(p=>p.id===gs.mvp)?.name || ""}
+                {gs.clean_sheet && <span style={{ marginLeft:16, color:"#4db8ff" }}>🧤 Clean Sheet</span>}
+              </div>
+            )}
+          </div>
+
+          <div className="section-title">Player Stats</div>
+          {players.map(player => {
+            const ps = getPS(game.id, player.id);
+            const isMvp = gs.mvp === player.id;
+            return (
+              <div key={player.id} style={{
+                borderRadius:8, marginBottom:8, overflow:"hidden",
+                background:isMvp?"rgba(251,191,36,0.08)":"rgba(255,255,255,0.03)",
+                border:`1px solid ${isMvp?"rgba(251,191,36,0.3)":"rgba(255,255,255,0.06)"}`,
+              }}>
+                {/* Player name row */}
+                <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 14px", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
+                  {player.number && <span style={{ fontFamily:"Bebas Neue", fontSize:16, color:"#4db8ff", flexShrink:0 }}>#{player.number}</span>}
+                  <span style={{ fontFamily:"Barlow", fontSize:15, fontWeight:600, color:isMvp?"#fbbf24":"#e2e8f0", flex:1 }}>{isMvp?"⭐ ":""}{player.name}</span>
+                  {/* Appeared toggle */}
+                  {isEditor ? (
+                    <button onClick={() => handlePS(player.id, "appeared", !ps.appeared)}
+                      style={{ background:ps.appeared?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)", border:`1px solid ${ps.appeared?"#4ade80":"rgba(255,255,255,0.1)"}`, borderRadius:6, color:ps.appeared?"#4ade80":"#475569", padding:"4px 10px", cursor:"pointer", fontFamily:"Barlow", fontSize:11, fontWeight:600, flexShrink:0 }}>
+                      {ps.appeared?"✓ PLAYED":"PLAYED?"}
+                    </button>
+                  ) : ps.appeared ? (
+                    <span style={{ fontFamily:"Barlow", fontSize:11, color:"#4ade80" }}>✓</span>
+                  ) : null}
+                  {/* Clean sheet toggle */}
+                  {isEditor ? (
+                    <button onClick={() => handlePS(player.id, "clean_sheet", !ps.clean_sheet)}
+                      style={{ background:ps.clean_sheet?"rgba(77,184,255,0.2)":"rgba(255,255,255,0.04)", border:`1px solid ${ps.clean_sheet?"#4db8ff":"rgba(255,255,255,0.1)"}`, borderRadius:6, color:ps.clean_sheet?"#4db8ff":"#475569", padding:"4px 10px", cursor:"pointer", fontFamily:"Barlow", fontSize:11, fontWeight:600, flexShrink:0 }}>
+                      🧤 {ps.clean_sheet?"✓":"—"}
+                    </button>
+                  ) : ps.clean_sheet ? (
+                    <span style={{ fontFamily:"Barlow", fontSize:12, color:"#4db8ff" }}>🧤</span>
+                  ) : null}
+                </div>
+                {/* Stats row */}
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", padding:"10px 8px", gap:4 }}>
+                  {[
+                    {field:"goals", color:"#4db8ff", label:"⚽ GOALS", val:ps.goals},
+                    {field:"assists", color:"#34d399", label:"🎯 ASST", val:ps.assists},
+                    {field:"yellow_cards", color:"#fbbf24", label:"🟨 YEL", val:ps.yellow_cards},
+                    {field:"red_cards", color:"#f87171", label:"🟥 RED", val:ps.red_cards},
+                  ].map(({field,color,label,val}) => (
+                    <div key={field} style={{ textAlign:"center" }}>
+                      <div style={{ fontFamily:"Barlow", fontSize:10, color:"#475569", marginBottom:4 }}>{label}</div>
+                      {isEditor ? (
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+                          <button onClick={() => handlePS(player.id, field, Math.max(0,(val||0)-1))}
+                            style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${color}44`, background:`${color}18`, color, cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>−</button>
+                          <span style={{ fontFamily:"Bebas Neue", fontSize:24, color:(val||0)>0?color:"#334155", minWidth:24, textAlign:"center" }}>{val||0}</span>
+                          <button onClick={() => handlePS(player.id, field, (val||0)+1)}
+                            style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${color}44`, background:`${color}18`, color, cursor:"pointer", fontSize:18, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>+</button>
+                        </div>
+                      ) : (
+                        <div style={{ fontFamily:"Bebas Neue", fontSize:24, color:(val||0)>0?color:"#334155" }}>{val||0}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    function RosterView({ players, onAdd, onUpdate, onDelete, isEditor }) {
+      const [editingId, setEditingId] = useState(null);
+      const [editName, setEditName] = useState("");
+      const [editNumber, setEditNumber] = useState("");
+      const [newName, setNewName] = useState("");
+      const [newNumber, setNewNumber] = useState("");
+      const [saving, setSaving] = useState(false);
+
+      const handleAdd = async () => {
+        if (!newName.trim()) return;
+        setSaving(true);
+        await onAdd(newName.trim(), newNumber);
+        setNewName(""); setNewNumber("");
+        setSaving(false);
+      };
+
+      const handleSave = async (id) => {
+        await onUpdate(id, editName, editNumber);
+        setEditingId(null);
+      };
+
+      return (
+        <div>
+          <div className="section-title">{isEditor ? "Manage Roster" : "Roster"}</div>
+          <div style={{ display:"grid", gridTemplateColumns:"52px 1fr auto", gap:10, padding:"4px 14px", marginBottom:6 }}>
+            <div style={{ fontFamily:"Barlow", fontSize:11, color:"#475569", textAlign:"center" }}>#</div>
+            <div style={{ fontFamily:"Barlow", fontSize:11, color:"#475569" }}>NAME</div>
+          </div>
+          {players.map(p => (
+            <div key={p.id} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8, background:"rgba(255,255,255,0.03)", padding:"10px 14px", borderRadius:6, border:"1px solid rgba(255,255,255,0.06)" }}>
+              {isEditor && editingId===p.id ? (
+                <>
+                  <input type="number" value={editNumber} onChange={e=>setEditNumber(e.target.value)} placeholder="#" className="shirt-input" min="1" max="99" />
+                  <input type="text" value={editName} onChange={e=>setEditName(e.target.value)}
+                    onKeyDown={e=>{ if(e.key==="Enter") handleSave(p.id); }} autoFocus style={{ flex:1 }} />
+                  <button onClick={()=>handleSave(p.id)} className="btn btn-primary" style={{ padding:"5px 12px", fontSize:13 }}>Save</button>
+                  <button onClick={()=>setEditingId(null)} style={{ background:"none", border:"1px solid #334155", borderRadius:5, color:"#64748b", padding:"5px 10px", cursor:"pointer", fontFamily:"Barlow" }}>✕</button>
+                </>
+              ) : (
+                <>
+                  <div style={{ width:36, height:36, borderRadius:6, background:"rgba(77,184,255,0.1)", border:"1px solid rgba(77,184,255,0.2)", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"Bebas Neue", fontSize:18, color:"#4db8ff", flexShrink:0 }}>
+                    {p.number || "—"}
+                  </div>
+                  <span style={{ flex:1, fontFamily:"Barlow", fontSize:15, color:"#cbd5e1" }}>{p.name}</span>
+                  {isEditor && <>
+                    <button onClick={()=>{ setEditingId(p.id); setEditName(p.name); setEditNumber(p.number||""); }}
+                      style={{ background:"none", border:"1px solid rgba(77,184,255,0.3)", borderRadius:5, color:"#4db8ff", padding:"5px 12px", cursor:"pointer", fontFamily:"Barlow", fontSize:13 }}>Edit</button>
+                    <button onClick={()=>onDelete(p.id)}
+                      style={{ background:"none", border:"1px solid rgba(248,113,113,0.3)", borderRadius:5, color:"#f87171", padding:"5px 10px", cursor:"pointer", fontFamily:"Barlow", fontSize:13 }}>✕</button>
+                  </>}
+                </>
+              )}
+            </div>
+          ))}
+          {isEditor && (
+            <div style={{ display:"flex", gap:10, marginTop:16 }}>
+              <input type="number" placeholder="#" value={newNumber} onChange={e=>setNewNumber(e.target.value)} className="shirt-input" min="1" max="99" />
+              <input type="text" placeholder="Player name..." value={newName} onChange={e=>setNewName(e.target.value)}
+                onKeyDown={e=>{ if(e.key==="Enter") handleAdd(); }} style={{ flex:1 }} />
+              <button onClick={handleAdd} disabled={saving} className="btn btn-primary" style={{ fontFamily:"Bebas Neue", fontSize:18, letterSpacing:1 }}>
+                {saving ? <div className="spinner" /> : "+ ADD"}
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
